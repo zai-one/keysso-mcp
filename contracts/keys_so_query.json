@@ -1,0 +1,13 @@
+{
+  "tool": "keys_so_query",
+  "inputSchema": {
+    "additionalProperties": false,
+    "properties": {
+      "path": {"type": "string"},
+      "params": {"additionalProperties": true, "type": "object"}
+    },
+    "required": ["path", "params"],
+    "type": "object"
+  },
+  "outputSchema": {"additionalProperties": true, "type": "object"}
+}
