@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from zai_keysso.adapter import ALLOWED_PARAMS, ALLOWED_PATHS, ALLOWED_VIEWS
+from zai_keysso.reports import REPORT_PATHS
 
 PARAMETERS = {
     "domain": "DNS domain; Unicode is normalized to IDNA",
@@ -31,6 +32,18 @@ def report_catalog() -> dict[str, Any]:
         "parameters": {key: PARAMETERS[key] for key in sorted(ALLOWED_PARAMS)},
         "parameter_scope": "Service allowlist; required parameters vary by provider report",
         "pagination": "One provider request per call; request further pages explicitly",
+        "typed_tools": {
+            "keysso_domain_report": {
+                "reports": REPORT_PATHS,
+                "example": {"report": "keywords", "domain": "example.com", "max_pages": 2},
+            },
+            "keysso_compare_domains": {
+                "example": {"include": ["competitor.example"], "exclude": ["example.com"]},
+            },
+            "limits": {"max_pages": 5, "page_size": 500, "max_rows_bytes": 262144},
+            "formats": ["json", "csv"],
+            "completeness": "Check complete, stop_reason and next_page; provider pages are not a snapshot.",
+        },
         "example": {
             "path": "/report/simple/domain_dashboard",
             "params": {"domain": "example.com", "base": "msk"},

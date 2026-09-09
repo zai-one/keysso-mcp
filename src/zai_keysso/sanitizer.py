@@ -159,3 +159,13 @@ def sanitize_provider_response(
         return f"***unsupported:{type(item).__name__}***"
 
     return visit(value, 0)
+
+
+def redact_literal(value: Any, secret: str) -> Any:
+    if isinstance(value, str):
+        return value.replace(secret, "***redacted***")
+    if isinstance(value, dict):
+        return {redact_literal(key, secret): redact_literal(item, secret) for key, item in value.items()}
+    if isinstance(value, list):
+        return [redact_literal(item, secret) for item in value]
+    return value

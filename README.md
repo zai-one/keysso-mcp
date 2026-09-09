@@ -22,6 +22,8 @@ Try asking your assistant:
 
 ## Quick start
 
+Prefer a ready package? [Install the release and generate your client configuration](INSTALL.md#install-a-release-package). No source checkout is required.
+
 Install **Python 3.12–3.14** and [uv](https://docs.astral.sh/uv/getting-started/installation/). Clone with Git or [download the ZIP](https://github.com/zai-one/keysso-mcp/archive/refs/heads/main.zip). With a ZIP, open the extracted directory and skip the first two commands.
 
 You need a Keys.so API token and access to the reports you want to use. The wizard saves the token in a private local file.
@@ -71,7 +73,9 @@ If tools do not appear, check the absolute path, whether the client can find `uv
 
 ## Access and limits
 
-Each tool call requests one report page. Ask the assistant to continue through more pages when you need a larger sample; one page should not be treated as a complete market or backlink audit.
+Use `keysso_domain_report` for keywords, competitors, pages or backlinks, and `keysso_compare_domains` for overlaps and gaps. Each can collect up to five pages and return JSON or CSV with source and completeness fields. The original `keys_so_query` still requests one page. [Report examples and limits](docs/REPORTS.md).
+
+Ask: “Export a competitor’s keywords excluding my domain, in CSV. Show whether the sample is complete.”
 
 This server exposes read-only reports. Available data and request limits depend on your Keys.so account. See [request limits and access settings](docs/RUNTIME.md).
 
@@ -90,11 +94,9 @@ Tests use synthetic fixtures. A passing test run does not establish live provide
 
 </details>
 
-## Talk about your integration
+## Built by ZAI.ONE
 
-Want to connect this MCP to your team’s workflows? [Get in touch on Telegram](https://t.me/zai_one) to discuss your setup and integration.
-
-A project by [ZAI.ONE](https://zai.one).
+[ZAI.ONE](https://zai.one) is a digital agency working on websites, SEO, advertising and analytics. We also build tools that connect AI assistants to everyday work. [Talk to us on Telegram](https://t.me/zai_one) about setup, automation or an integration for your team.
 
 ## Use and feedback
 

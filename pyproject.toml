@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "zai-keysso-mcp"
-version = "0.2.0"
-description = "Standalone governed Keys.so MCP service"
+version = "0.3.0"
+description = "Keys.so keyword, competitor and backlink reports with bounded CSV export for AI assistants"
 readme = "README.md"
 license = "LicenseRef-ZAI-ONE"
 license-files = ["LICENSE", "NOTICE"]
@@ -19,6 +19,7 @@ dependencies = [
 dev = ["pytest==9.1.1", "pytest-asyncio==1.4.0", "ruff==0.15.21"]
 
 [project.scripts]
+keysso-mcp-setup = "zai_keysso.setup:main"
 keysso-mcp = "zai_keysso.server:main"
 
 [tool.hatch.build.targets.wheel]

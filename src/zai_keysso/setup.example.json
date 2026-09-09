@@ -1,0 +1,6 @@
+{
+  "env": {
+    "KEYSSO_API_TOKEN_FILE": "secrets/api.token",
+    "KEYSSO_STATE_PATH": "state/keysso.sqlite"
+  }
+}

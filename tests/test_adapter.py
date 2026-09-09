@@ -5,6 +5,7 @@ from typing import Any
 
 import pytest
 
+from zai_keysso import __version__
 from zai_keysso.adapter import KeysSoAdapter
 from zai_keysso.transport import ProviderError
 
@@ -46,7 +47,7 @@ async def test_keys_so_read_contract_uses_server_credential_and_preserves_list()
             {
                 "Accept": "application/json",
                 "X-Keyso-TOKEN": "secret",
-                "User-Agent": "ZAI-MCP-Platform/0.2.0",
+                "User-Agent": f"ZAI-ONE-Keysso-MCP/{__version__}",
             },
             {"base": "msk", "domain": "example.com", "page": 1, "per_page": 25, "sort": "pos|asc"},
         )

@@ -6,7 +6,7 @@ import json
 import math
 import time
 from collections.abc import Awaitable, Callable
-from typing import Any, TypeVar
+from typing import Any, Literal, TypeVar
 from uuid import uuid4
 
 from fastmcp import FastMCP
@@ -21,7 +21,8 @@ from zai_keysso.coalescing import AsyncSingleFlight
 from zai_keysso.config import ServiceConfig
 from zai_keysso.onboarding import check_config, load_config
 from zai_keysso.policy import PolicyStore
-from zai_keysso.sanitizer import sanitize_provider_response
+from zai_keysso.reports import collect_report, comparison_request, domain_request, validate_bounds
+from zai_keysso.sanitizer import redact_literal, sanitize_provider_response
 from zai_keysso.transport import (
     JsonHttpClient,
     ProviderAdmissionDenied,
@@ -53,17 +54,9 @@ def _timestamp(value: Any) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
 
 
-def _redact_literal(value: Any, secret: str) -> Any:
-    if isinstance(value, str):
-        return value.replace(secret, "***redacted***")
-    if isinstance(value, dict):
-        return {_redact_literal(key, secret): _redact_literal(item, secret) for key, item in value.items()}
-    if isinstance(value, list):
-        return [_redact_literal(item, secret) for item in value]
-    return value
-
-
-def authorize(config: ServiceConfig, transport: str, arguments: dict[str, Any]) -> dict[str, Any]:
+def authorize(
+    config: ServiceConfig, transport: str, arguments: dict[str, Any], tool_name: str = TOOL_NAME
+) -> dict[str, Any]:
     if transport == "stdio":
         return {"actor": config.principal_id, "request_id": uuid4().hex}
     access = get_access_token()
@@ -91,7 +84,7 @@ def authorize(config: ServiceConfig, transport: str, arguments: dict[str, Any]) 
             or issued > now + 5
             or claims["exp"] - issued > config.delegated_ttl
             or claims["exp"] <= issued
-            or claims.get("tool") != TOOL_NAME
+            or claims.get("tool") != tool_name
             or claims.get("request_hash") != request_hash(arguments)
             or not isinstance(nonce, str)
             or not 1 <= len(nonce) <= 128
@@ -107,9 +100,13 @@ class AdmittedHttpClient(JsonHttpClient):
     def __init__(self, store: PolicyStore, execution_id: str, actor: str, delegated: bool):
         super().__init__(timeout=60, retry=RetryPolicy(attempts=1 if delegated else 3))
         self.store, self.execution_id, self.actor = store, execution_id, actor
+        self.admissions = 0
 
     async def _admit_attempt(self, attempt: int) -> None:
-        self.store.admit(self.execution_id, self.actor, attempt)
+        # Each report page restarts the HTTP retry index. Audit every HTTP attempt
+        # with a unique ordinal across the entire admitted MCP execution.
+        self.admissions += 1
+        self.store.admit(self.execution_id, self.actor, self.admissions)
 
 
 def _safe_error(exc: Exception) -> ToolError:
@@ -182,19 +179,22 @@ def create_server(
         """Allowed Keys.so reports, parameter limits and a query example; no API calls."""
         return json.dumps(report_catalog(), ensure_ascii=False)
 
-    @server.tool
-    async def keys_so_query(path: str, params: dict[str, Any]) -> dict[str, Any]:
-        """Run one read-only Keys.so report from the fixed path and parameter allowlist."""
+    async def execute(
+        tool_name: str,
+        arguments: dict[str, Any],
+        validate: Callable[[], Any],
+        operation: Callable[[KeysSoAdapter], Awaitable[dict[str, Any]]],
+    ) -> dict[str, Any]:
         execution_id = uuid4().hex
         begun = False
         try:
-            identity = authorize(config, transport, {"path": path, "params": params})
-            KeysSoAdapter.validate(path, params)
+            identity = authorize(config, transport, arguments, tool_name)
+            validate()
             store.begin(
                 execution_id,
                 identity["request_id"],
                 identity["actor"],
-                request_hash({"path": path, "params": params}),
+                request_hash(arguments),
                 identity.get("nonce"),
                 identity.get("expires"),
             )
@@ -207,11 +207,11 @@ def create_server(
             # A hard total bound keeps in-flight work inside the 90-second lease,
             # including a peer that sends bytes often enough to reset HTTP read timeouts.
             async with asyncio.timeout(OPERATION_TIMEOUT_SECONDS):
-                payload = await adapter.query(path, params)
+                payload = await operation(adapter)
             # Strip literal configured secrets too, including under innocuous response keys.
-            safe_payload = _redact_literal(sanitize_provider_response(payload), config.provider_token)
+            safe_payload = redact_literal(sanitize_provider_response(payload), config.provider_token)
             store.finish(execution_id, "success")
-            return {"payload": safe_payload}
+            return safe_payload
         except asyncio.CancelledError:
             # The unshielded upstream has unwound before its lease is released.
             if begun:
@@ -225,6 +225,112 @@ def create_server(
             if begun:
                 store.finish(execution_id, "error")
             raise _safe_error(exc) from None
+
+    @server.tool
+    async def keys_so_query(path: str, params: dict[str, Any]) -> dict[str, Any]:
+        """Run one read-only Keys.so report from the fixed path and parameter allowlist."""
+
+        async def query(adapter: KeysSoAdapter) -> dict[str, Any]:
+            return {"payload": await adapter.query(path, params)}
+
+        return await execute(
+            TOOL_NAME,
+            {"path": path, "params": params},
+            lambda: KeysSoAdapter.validate(path, params),
+            query,
+        )
+
+    @server.tool
+    async def keysso_domain_report(
+        report: Literal["keywords", "competitors", "pages", "backlinks"],
+        domain: str,
+        base: str = "msk",
+        sort: str | None = None,
+        start_page: int = 1,
+        max_pages: int = 1,
+        page_size: int = 100,
+        output: Literal["json", "csv"] = "json",
+    ) -> dict[str, Any]:
+        """Read up to five pages of a domain report. Return provenance, completeness and JSON or CSV.
+
+        Each page spends provider request quota. Backlinks do not use the regional base.
+        A partial result includes a stop reason; never describe it as a complete audit.
+        """
+        arguments = {
+            "report": report,
+            "domain": domain,
+            "base": base,
+            "sort": sort,
+            "start_page": start_page,
+            "max_pages": max_pages,
+            "page_size": page_size,
+            "output": output,
+        }
+
+        def validate():
+            validate_bounds(start_page, max_pages, page_size, output)
+            domain_request(report, domain, base, sort)
+
+        async def query(adapter: KeysSoAdapter) -> dict[str, Any]:
+            path, params = domain_request(report, domain, base, sort)
+            return await collect_report(
+                adapter,
+                path,
+                params,
+                start_page=start_page,
+                max_pages=max_pages,
+                page_size=page_size,
+                output=output,
+                secret=config.provider_token,
+            )
+
+        return await execute("keysso_domain_report", arguments, validate, query)
+
+    @server.tool
+    async def keysso_compare_domains(
+        include: list[str],
+        exclude: list[str],
+        base: str = "msk",
+        view: Literal["organic", "context", "backlinks"] = "organic",
+        start_page: int = 1,
+        max_pages: int = 1,
+        page_size: int = 100,
+        output: Literal["json", "csv"] = "json",
+    ) -> dict[str, Any]:
+        """Compare included domains and exclude others using Keys.so's comparison report.
+
+        Use include=[competitor] and exclude=[your_site] to research a keyword gap.
+        Up to five pages; counts describe provider data, not an independently crawled web.
+        """
+        arguments = {
+            "include": include,
+            "exclude": exclude,
+            "base": base,
+            "view": view,
+            "start_page": start_page,
+            "max_pages": max_pages,
+            "page_size": page_size,
+            "output": output,
+        }
+
+        def validate():
+            validate_bounds(start_page, max_pages, page_size, output)
+            comparison_request(include, exclude, base, view)
+
+        async def query(adapter: KeysSoAdapter) -> dict[str, Any]:
+            path, params = comparison_request(include, exclude, base, view)
+            return await collect_report(
+                adapter,
+                path,
+                params,
+                start_page=start_page,
+                max_pages=max_pages,
+                page_size=page_size,
+                output=output,
+                secret=config.provider_token,
+            )
+
+        return await execute("keysso_compare_domains", arguments, validate, query)
 
     return server
 

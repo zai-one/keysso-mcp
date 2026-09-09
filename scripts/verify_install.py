@@ -23,6 +23,15 @@ def local_only(sock, address):
     return original(sock, address)
 socket.socket.connect = local_only
 package, config = sys.argv[1:]
+from zai_keysso.server import AdmittedHttpClient
+async def fixture_request(self, method, url, **kwargs):
+    await self._admit_attempt(1)
+    assert method == 'GET' and url == 'https://api.keys.so/report/simple/organic/keywords'
+    assert kwargs['params']['domain'] == 'example.com'
+    assert kwargs['params']['page'] == 1
+    return {'current_page': 1, 'per_page': 100, 'last_page': 1, 'total': 1,
+            'data': [{'word': 'synthetic installed report', 'pos': 7}]}
+AdmittedHttpClient.request_json = fixture_request
 sys.argv = [package, '--config', config]
 runpy.run_module(package, run_name='__main__')
 """
@@ -34,6 +43,23 @@ package, distribution, expected_version, config, minimum, child = sys.argv[1:]
 module = importlib.import_module(package)
 assert importlib.metadata.version(distribution) == expected_version == module.__version__
 assert pathlib.Path(sys.prefix).resolve() in pathlib.Path(module.__file__).resolve().parents
+# Exercise the installed wizard with synthetic inputs, outside the source checkout.
+from unittest.mock import patch
+setup = importlib.import_module(package + '.setup')
+original_env = json.loads(pathlib.Path(config).read_text(encoding='utf-8'))['env']
+private_file = next((v for k, v in original_env.items() if k.endswith('_SECRET_FILE')), '')
+def prompt(text):
+    return private_file if '_SECRET_FILE' in text else '12345'
+with (
+    patch('builtins.input', prompt),
+    patch.object(setup.getpass, 'getpass', lambda _: 'synthetic-install-token'),
+):
+    configured = setup.configure(pathlib.Path(config).parent / 'installed-wizard')
+snippet = json.loads(configured.with_name('mcp-client.json').read_text(encoding='utf-8'))
+entry = snippet['mcpServers'][setup.SERVICE]
+assert entry['command'] == sys.executable
+assert entry['args'] == ['-m', package, '--config', str(configured)]
+config = str(configured)
 async def check():
     transport = StdioTransport(command=sys.executable, args=['-c', child, package, config],
                                cwd=str(pathlib.Path(config).parent), keep_alive=False)
@@ -41,6 +67,11 @@ async def check():
         tools = await client.list_tools()
         assert len(tools) >= int(minimum)
         assert all(tool.name for tool in tools)
+        report = (await client.call_tool('keysso_domain_report',
+                  {'report': 'keywords', 'domain': 'example.com'})).data
+        assert report['complete'] and report['row_count'] == 1
+        assert report['rows'] == [{'word': 'synthetic installed report', 'pos': 7}]
+
         print(json.dumps({'version': expected_version, 'tools': sorted(tool.name for tool in tools)}))
 asyncio.run(check())
 """
@@ -140,8 +171,18 @@ def main():
             env[prefix + "_SECRET_FILE"] = private(cwd / "synthetic.env", secret)
         config = cwd / "mcp.local.json"
         config.write_text(json.dumps({"env": env}), encoding="utf-8")
+        setup_command = next(name for name in project["scripts"] if name.endswith("-setup"))
+        executable = (
+            environment
+            / ("Scripts" if os.name == "nt" else "bin")
+            / (setup_command + (".exe" if os.name == "nt" else ""))
+        )
+        snippet = json.loads(run([str(executable), "--directory", str(cwd), "--client-only"], cwd=cwd))
+        entry = next(iter(snippet["mcpServers"].values()))
+        assert Path(entry["command"]).resolve() == python.resolve()
+        assert entry["args"] == ["-m", PACKAGE, "--config", str(config.resolve())]
         minimum = {
-            "Keysso": 1,
+            "Keysso": 3,
             "Topvisor": 18,
             "Roistat": 22,
             "Yandex": 47,
@@ -165,7 +206,17 @@ def main():
                 cwd=cwd,
             ).strip()
         )
-        print(json.dumps({"clean_install": True, "stdio": True, "external_sockets": "blocked"}))
+        print(
+            json.dumps(
+                {
+                    "clean_install": True,
+                    "installed_setup": True,
+                    "fixture_tool_call": "keysso_domain_report",
+                    "stdio": True,
+                    "external_sockets": "blocked",
+                }
+            )
+        )
 
 
 if __name__ == "__main__":

@@ -25,7 +25,11 @@ async def test_installed_stdio_from_unrelated_directory(tmp_path: Path) -> None:
         keep_alive=False,
     )
     async with Client(transport, timeout=30) as client:
-        assert [tool.name for tool in await client.list_tools()] == ["keys_so_query"]
+        assert {tool.name for tool in await client.list_tools()} == {
+            "keys_so_query",
+            "keysso_domain_report",
+            "keysso_compare_domains",
+        }
         # A forbidden report proves the installed entrypoint executes its policy
         # without consuming provider quota or needing a real credential.
         with pytest.raises(ToolError, match="validation_failed"):

@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 from typing import Any, Protocol
 
+from zai_keysso import __version__
 from zai_keysso.coalescing import AsyncSingleFlight
 from zai_keysso.transport import JsonHttpClient, ProviderError, request_hash
 
@@ -101,7 +102,7 @@ class KeysSoAdapter:
         return {
             "Accept": "application/json",
             "X-Keyso-TOKEN": self.token,
-            "User-Agent": "ZAI-MCP-Platform/0.2.0",
+            "User-Agent": f"ZAI-ONE-Keysso-MCP/{__version__}",
         }
 
     @staticmethod
