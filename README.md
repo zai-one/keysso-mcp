@@ -2,15 +2,19 @@
 
 # Keysso MCP
 
-Keys.so SEO, advertising, competitor and backlink reports.
+MCP server for Keys.so SEO reports. An AI assistant can retrieve keyword, competitor, advertising and backlink data through the supported report API.
 
-Install it on your own computer or server and connect an MCP client. No AI Kit or
-central ZAI platform installation is required. Provider credentials and API access
-are required; provider charges and account restrictions still apply.
+## What you can do
+
+- Browse the report catalogue at `keysso://reports`.
+- Request a report with `keys_so_query`, using its documented path and parameters.
+- Read report data within a fixed list of supported endpoints and parameters.
 
 ## Quick start
 
 Install Python 3.12+ (below 3.15), [uv](https://docs.astral.sh/uv/getting-started/installation/) and Git.
+
+You need a Keys.so API token and access to the reports you want to use. The wizard saves the token in a private local file.
 
 ```sh
 git clone https://github.com/zai-one/keysso-mcp.git
@@ -25,12 +29,9 @@ The last command starts stdio and waits for an MCP client; it is not an interact
 See [INSTALL.md](INSTALL.md) for credentials, client configuration, HTTP and package integration.
 `--check-config` checks local settings only; it never validates a provider account over the network.
 
-## Included in 0.2.0
+## Scope and limits
 
-Discover reports via keysso://reports and call keys_so_query with the documented path and parameters.
-
-Existing tool names and schemas remain supported. Writes and paid operations retain
-their server policy and approval controls. See [runtime configuration](docs/RUNTIME.md).
+This server exposes read-only reports. Available data and request limits depend on your Keys.so account. See [request limits and access settings](docs/RUNTIME.md).
 
 ## Verification
 
