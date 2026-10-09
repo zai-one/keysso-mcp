@@ -20,6 +20,7 @@ async def test_installed_stdio_from_unrelated_directory(tmp_path: Path) -> None:
             "KEYSSO_API_TOKEN_FILE": str(token),
             "KEYSSO_STATE_PATH": str(tmp_path / "state.sqlite"),
             "KEYSSO_AUTH_MODE": "operator",
+            "KEYSSO_DISABLE_UPDATE_CHECK": "1",
         },
         cwd=str(tmp_path),
         keep_alive=False,
@@ -30,6 +31,7 @@ async def test_installed_stdio_from_unrelated_directory(tmp_path: Path) -> None:
             "keysso_domain_report",
             "keysso_compare_domains",
             "keysso_ai_tracker",
+            "keysso_check_update",
         }
         # A forbidden report proves the installed entrypoint executes its policy
         # without consuming provider quota or needing a real credential.

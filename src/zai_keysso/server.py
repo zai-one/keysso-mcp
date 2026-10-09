@@ -6,6 +6,7 @@ import json
 import math
 import time
 from collections.abc import Awaitable, Callable
+from pathlib import Path
 from typing import Any, Literal, TypeVar
 from uuid import uuid4
 
@@ -33,6 +34,7 @@ from zai_keysso.transport import (
     RetryPolicy,
     request_hash,
 )
+from zai_keysso.update_check import CACHE_FILE, cached_hint, check_update, refresh_in_background
 
 TOOL_NAME = "keys_so_query"
 # MCP tool annotations: every Keys.so tool only reads provider data (and spends request quota).
@@ -175,7 +177,14 @@ def create_server(
         config.principal_rate_limit,
         config.max_concurrency,
     )
-    server = FastMCP("Keysso MCP", version=__version__, auth=auth, mask_error_details=True)
+    update_cache = update_cache_path(config)
+    server = FastMCP(
+        "Keysso MCP",
+        version=__version__,
+        auth=auth,
+        mask_error_details=True,
+        instructions=cached_hint(update_cache),
+    )
 
     @server.resource("keysso://reports", mime_type="application/json")
     def reports() -> str:
@@ -392,7 +401,20 @@ def create_server(
             "keysso_ai_tracker", arguments, lambda: ai_tracker_request(report, tracker_id, **optional), query
         )
 
+    @server.tool(annotations=READ_ONLY)
+    async def keysso_check_update(force_refresh: bool = False) -> dict[str, Any]:
+        """Compare the installed version with the latest GitHub release and suggest an update command.
+
+        Read-only; never installs anything and spends no Keys.so quota. Uses a 24h cache.
+        Set KEYSSO_DISABLE_UPDATE_CHECK=1 to opt out.
+        """
+        return await asyncio.to_thread(check_update, update_cache, force=force_refresh)
+
     return server
+
+
+def update_cache_path(config: ServiceConfig) -> Path:
+    return config.state_path.parent / CACHE_FILE
 
 
 def main() -> None:
@@ -413,6 +435,8 @@ def main() -> None:
             print(json.dumps(result, sort_keys=True))
             parser.exit(0 if result["ready"] else 2)
         server = create_server(config, transport=args.transport)
+        # Non-blocking: refresh a stale update cache for the next start; failures are silent.
+        refresh_in_background(update_cache_path(config))
     except (ValueError, OSError) as exc:
         parser.exit(2, f"configuration error: {type(exc).__name__}; check credential and policy files\n")
     if args.transport == "http":

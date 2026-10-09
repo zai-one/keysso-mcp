@@ -108,6 +108,7 @@ async def test_authenticated_http_contract_and_replay(tmp_path: Path, key_pair: 
             "keysso_domain_report",
             "keysso_compare_domains",
             "keysso_ai_tracker",
+            "keysso_check_update",
         } == set(tools_by_name)
         assert tools_by_name["keys_so_query"].inputSchema == CONTRACT["inputSchema"]
         assert tools_by_name["keys_so_query"].outputSchema == CONTRACT["outputSchema"]
