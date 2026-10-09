@@ -19,6 +19,8 @@ Try asking your assistant:
 | Explore a competitor | Domain summaries, organic keywords, competing domains and landing-page reports. |
 | Review advertising | Available ad, paid-keyword and advertising-history reports. |
 | Investigate links | Backlinks, referring domains, anchors and linked-page reports. |
+| Look back at ads | Monthly Yandex ad archives for a domain, an ad or a phrase (`month=YYYY-MM`), plus phrase dashboards and similar phrases. |
+| Track AI answers (GEO) | `keysso_ai_tracker` reads your AI tracker projects: mentions, citation, brand vs competitor visibility, sources and prompt answers. Nothing is created, started or deleted. |
 
 ## Quick start
 
@@ -76,6 +78,10 @@ If tools do not appear, check the absolute path, whether the client can find `uv
 Use `keysso_domain_report` for keywords, competitors, pages or backlinks, and `keysso_compare_domains` for overlaps and gaps. Each can collect up to five pages and return JSON or CSV with source and completeness fields. The original `keys_so_query` still requests one page. [Report examples and limits](docs/REPORTS.md).
 
 Ask: “Export a competitor’s keywords excluding my domain, in CSV. Show whether the sample is complete.”
+
+### Updates
+
+`keysso_check_update` compares the installed version with the latest [GitHub release](https://github.com/zai-one/keysso-mcp/releases) and returns the release link and the matching `uv tool install --force ...` command. It never installs anything and uses no Keys.so quota. The result is cached for 24 hours next to the state database; when a newer release is cached, the server instructions mention it once. Set `KEYSSO_DISABLE_UPDATE_CHECK=1` to turn off both the tool's network request and the startup refresh.
 
 This server exposes read-only reports. Available data and request limits depend on your Keys.so account. See [request limits and access settings](docs/RUNTIME.md).
 

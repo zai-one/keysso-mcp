@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- `keys_so_query`: monthly Yandex ad archives from Keys.so API 1.0.24–1.0.26 (`context/ads/archive`, `.../months`, `context/keywords/archive`, `context/keywords/byads/archive`, `context/keyword/ads/archive`, `.../months`) with `month`, `keyword` and `full` parameters; `keyword_dashboard` and `similarkeys`.
+- Sorts that Keys.so now rejects with HTTP 400 (context keywords by `header`/`txt`/`url`, 1.0.25) fail locally; up to three comma-separated sort fields are accepted.
+- `keysso_ai_tracker`: read-only AI tracker reports (projects, entity, dates, report, mentions, citation, reference, sources, competitors, prompt).
+- `keysso_check_update`: suggests an update from the latest GitHub release (24h cache, offline-safe, never installs); cached startup hint; opt out with `KEYSSO_DISABLE_UPDATE_CHECK=1`.
+- MCP tool annotations (`readOnlyHint`, `idempotentHint`) on every tool.
+
 ## 0.3.0 — Reports you can work with
 
 - Typed domain reports and domain comparisons with bounded pagination, provenance and CSV export.
