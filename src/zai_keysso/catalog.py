@@ -18,7 +18,11 @@ PARAMETERS = {
     "limit": "Result limit, 1-100",
     "top": "Top limit, 1-100",
     "ads_id": "Advertisement ID, 1-2147483647",
-    "sort": "Provider field followed by |asc or |desc",
+    "sort": "Provider field followed by |asc or |desc; up to three, comma-separated. "
+    "Context keyword reports reject header, txt and url; the keyword ads archive sorts by keyscnt or serp",
+    "keyword": "Search phrase, 1-512 characters (keyword_dashboard, similarkeys, keyword ads archive)",
+    "month": "Monthly ad archive month YYYY-MM; omitted means the current month (Yandex bases only)",
+    "full": "Boolean; context/ads/archive adds keywords for each ad",
 }
 
 

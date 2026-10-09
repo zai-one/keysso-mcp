@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import re
+from datetime import date
 from typing import Any, Protocol
 
 from zai_keysso import __version__
+from zai_keysso.ai_tracker import ai_tracker_request
 from zai_keysso.coalescing import AsyncSingleFlight
 from zai_keysso.transport import JsonHttpClient, ProviderError, request_hash
 
@@ -12,16 +14,23 @@ ALLOWED_PATHS = frozenset(
         "/limits/all",
         "/report/compare",
         "/report/simple/context/ads",
+        "/report/simple/context/ads/archive",
+        "/report/simple/context/ads/archive/months",
         "/report/simple/context/ads/facts",
         "/report/simple/context/ads/links",
         "/report/simple/context/concurents",
+        "/report/simple/context/keyword/ads/archive",
+        "/report/simple/context/keyword/ads/archive/months",
         "/report/simple/context/keywords",
+        "/report/simple/context/keywords/archive",
         "/report/simple/context/keywords/byads",
+        "/report/simple/context/keywords/byads/archive",
         "/report/simple/direct/domain",
         "/report/simple/domain_ad_history",
         "/report/simple/domain_dashboard",
         "/report/simple/domain_dashboard/ai-answers",
         "/report/simple/domain_dashboard/ai-concurents",
+        "/report/simple/keyword_dashboard",
         "/report/simple/links/backlinks",
         "/report/simple/links/backlinks-anchor",
         "/report/simple/links/backlinks-domains",
@@ -32,11 +41,40 @@ ALLOWED_PATHS = frozenset(
         "/report/simple/organic/lost_keywords",
         "/report/simple/organic/sitepages",
         "/report/simple/organic/sitepages/withkeys",
+        "/report/simple/similarkeys",
     }
 )
 ALLOWED_PARAMS = frozenset(
-    {"ads_id", "base", "domain", "excl", "incl", "limit", "page", "per_page", "sort", "top", "view"}
+    {
+        "ads_id",
+        "base",
+        "domain",
+        "excl",
+        "full",
+        "incl",
+        "keyword",
+        "limit",
+        "month",
+        "page",
+        "per_page",
+        "sort",
+        "top",
+        "view",
+    }
 )
+# Keys.so API changelog 1.0.25 (2026-10-01): sorting context keywords by these fields returns HTTP 400.
+_CONTEXT_KEYWORD_PATHS = frozenset(
+    {
+        "/report/simple/context/keywords",
+        "/report/simple/context/keywords/archive",
+        "/report/simple/context/keywords/byads",
+        "/report/simple/context/keywords/byads/archive",
+    }
+)
+_UNSORTABLE_CONTEXT_FIELDS = frozenset({"header", "txt", "url"})
+# 1.0.26 (2026-10-08): the keyword ads archive sorts only by keyscnt and serp.
+_SORT_ONLY = {"/report/simple/context/keyword/ads/archive": frozenset({"keyscnt", "serp"})}
+MAX_KEYWORD_CHARS = 512
 ALLOWED_VIEWS = frozenset({"organic", "context", "backlinks"})
 _DOMAIN = re.compile(r"(?=.{1,253}\Z)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9][a-z0-9-]{1,62}\Z")
 _RSYA_PATH = re.compile(r"/report/ads/rsya/domains/([^/]+)\Z")
@@ -150,15 +188,48 @@ class KeysSoAdapter:
         for field, maximum in bounded_ints:
             if field in validated:
                 validated[field] = _validated_positive_int(validated[field], field, maximum)
+        if "keyword" in validated:
+            keyword = " ".join(str(validated["keyword"]).split())
+            if not keyword or len(keyword) > MAX_KEYWORD_CHARS:
+                raise ValueError(f"keyword must contain 1-{MAX_KEYWORD_CHARS} characters")
+            validated["keyword"] = keyword
+        if "month" in validated:
+            month = str(validated["month"]).strip()
+            if re.fullmatch(r"\d{4}-\d{2}", month) is None:
+                raise ValueError("month must use YYYY-MM")
+            try:
+                date.fromisoformat(month + "-01")
+            except ValueError as exc:
+                raise ValueError("month must use YYYY-MM") from exc
+            validated["month"] = month
+        if "full" in validated:
+            if not isinstance(validated["full"], bool) and validated["full"] not in {0, 1, "0", "1"}:
+                raise ValueError("full must be a boolean")
+            validated["full"] = int(validated["full"] in {1, "1"})  # True == 1
         if "sort" in validated:
             sort = str(validated["sort"]).strip()
-            if not re.fullmatch(r"[a-zA-Z0-9_]{1,64}\|(asc|desc)", sort):
-                raise ValueError("sort must use field|asc or field|desc")
+            if not re.fullmatch(
+                r"[a-zA-Z0-9_]{1,64}\|(asc|desc)(,[a-zA-Z0-9_]{1,64}\|(asc|desc)){0,2}", sort
+            ):
+                raise ValueError("sort must use field|asc or field|desc (up to three, comma-separated)")
+            fields = {item.split("|", 1)[0] for item in sort.split(",")}
+            if normalized_path in _CONTEXT_KEYWORD_PATHS and fields & _UNSORTABLE_CONTEXT_FIELDS:
+                raise ValueError("Keys.so does not sort context keywords by header, txt or url")
+            allowed_sort = _SORT_ONLY.get(normalized_path)
+            if allowed_sort is not None and not fields <= allowed_sort:
+                raise ValueError("this report sorts only by: " + ", ".join(sorted(allowed_sort)))
             validated["sort"] = sort
         return normalized_path, validated
 
+    async def ai_tracker(self, report: str, tracker_id: int | None = None, **arguments: Any) -> Any:
+        path, params = ai_tracker_request(report, tracker_id, **arguments)
+        return await self._get(path, params)
+
     async def query(self, path: str, params: dict[str, Any]) -> Any:
         normalized_path, validated = self.validate(path, params)
+        return await self._get(normalized_path, validated)
+
+    async def _get(self, normalized_path: str, validated: dict[str, Any]) -> Any:
         key = request_hash({"provider": "keys_so", "path": normalized_path, "params": validated})
         return await self.coalescer.run(
             key,

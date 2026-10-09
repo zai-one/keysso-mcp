@@ -29,6 +29,7 @@ async def test_installed_stdio_from_unrelated_directory(tmp_path: Path) -> None:
             "keys_so_query",
             "keysso_domain_report",
             "keysso_compare_domains",
+            "keysso_ai_tracker",
         }
         # A forbidden report proves the installed entrypoint executes its policy
         # without consuming provider quota or needing a real credential.
