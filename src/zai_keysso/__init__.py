@@ -1,3 +1,3 @@
 """Keys.so MCP service, independent of the central gateway."""
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"

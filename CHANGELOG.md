@@ -1,16 +1,15 @@
 # Changelog
 
-## Unreleased
+## 0.4.0 — Ad archives, AI tracker and update hints
 
-- `keys_so_query`: monthly Yandex ad archives from Keys.so API 1.0.24–1.0.26 (`context/ads/archive`, `.../months`, `context/keywords/archive`, `context/keywords/byads/archive`, `context/keyword/ads/archive`, `.../months`) with `month`, `keyword` and `full` parameters; `keyword_dashboard` and `similarkeys`.
-- Sorts that Keys.so now rejects with HTTP 400 (context keywords by `header`/`txt`/`url`, 1.0.25) fail locally; up to three comma-separated sort fields are accepted.
+- `keys_so_query`: monthly Yandex ad archives from Keys.so API 1.0.24–1.0.26 (`context/ads/archive`, `context/keywords/archive`, `context/keywords/byads/archive`, `context/keyword/ads/archive` and their `months` lists) with `month`, `keyword` and `full` parameters; `keyword_dashboard` and `similarkeys` phrase reports.
+- Sorts that Keys.so now rejects with HTTP 400 fail locally; up to three comma-separated sort fields are accepted.
 - `keysso_ai_tracker`: read-only AI tracker reports (projects, entity, dates, report, mentions, citation, reference, sources, competitors, prompt).
-- `keysso_check_update`: suggests an update from the latest GitHub release (24h cache, offline-safe, never installs); cached startup hint; opt out with `KEYSSO_DISABLE_UPDATE_CHECK=1`.
+- `keysso_check_update`: suggests an update from the latest GitHub release and never installs; 24h cache, offline-safe, cached startup hint, opt out with `KEYSSO_DISABLE_UPDATE_CHECK=1`.
+- Update check hardening: only plain version tags (`v1.2.3`) are accepted, the cache is re-validated on read, failures back off for 30 minutes and `force_refresh` runs at most once a minute.
+- `keysso_check_update` goes through the same authorization and audit as the other tools without spending Keys.so quota.
 - MCP tool annotations (`readOnlyHint`, `idempotentHint`) on every tool.
-- Update check hardening: only plain version tags (`v1.2.3`) reach the result, cache or server instructions, and the cache is re-validated on read; every fetch attempt is recorded, a failure backs off for 30 minutes and `force_refresh` runs at most once a minute (also without a cache); the startup refresh follows the same rules.
-- `keysso_check_update` now goes through the same authorization and audit as the other tools (account binding, request-bound delegation, ledger row) without spending Keys.so quota; `idempotentHint` is now false because a forced refresh can rewrite the cache.
-- `keys_so_query`: wrongly typed `keyword`, `base`, `full` and other string parameters fail with `validation_failed` before any provider call instead of being stringified or reported as `operation_failed`.
-- `KEYSSO_DISABLE_UPDATE_CHECK` is documented in `.env.example` and `docs/RUNTIME.md`; tests disable the update check by default.
+- Strict input types: wrongly typed `keys_so_query` parameters fail with `validation_failed` before any provider call.
 
 ## 0.3.0 — Reports you can work with
 
