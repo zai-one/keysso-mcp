@@ -106,3 +106,42 @@ async def test_keys_so_coalesces_identical_concurrent_reports() -> None:
     assert first == second == {"limit": 100}
     assert first is not second
     assert len(http.calls) == 1
+
+
+@pytest.mark.parametrize(
+    ("path", "params"),
+    [
+        ("/report/simple/context/ads/archive", {"domain": "example.com", "full": [1]}),
+        ("/report/simple/context/ads/archive", {"domain": "example.com", "full": {"x": 1}}),
+        ("/report/simple/context/ads/archive", {"domain": "example.com", "full": 1.0}),
+        ("/report/simple/context/ads/archive", {"domain": "example.com", "full": 2}),
+        ("/report/simple/context/ads/archive", {"domain": "example.com", "full": "true"}),
+        ("/report/simple/context/ads/archive", {"domain": "example.com", "full": None}),
+        ("/report/simple/keyword_dashboard", {"keyword": ["a"]}),
+        ("/report/simple/keyword_dashboard", {"keyword": 42}),
+        ("/report/simple/keyword_dashboard", {"keyword": {"q": "a"}}),
+        ("/report/simple/keyword_dashboard", {"keyword": "a", "base": ["msk"]}),
+        ("/report/simple/keyword_dashboard", {"keyword": "a", "base": 77}),
+        ("/report/simple/keyword_dashboard", {"keyword": "a", "base": True}),
+        ("/report/simple/organic/keywords", {"domain": ["example.com"]}),
+        ("/report/simple/organic/keywords", {"domain": "example.com", "sort": ["pos|asc"]}),
+        ("/report/compare", {"incl": ["example.com"]}),
+        ("/report/compare", {"incl": "example.com", "excl": ["other.example"]}),
+        ("/report/compare", {"incl": "example.com", "view": ["organic"]}),
+        ("/report/simple/context/ads/archive", {"domain": "example.com", "month": 202609}),
+    ],
+)
+async def test_wrongly_typed_params_fail_validation_before_network(path: str, params: dict[str, Any]) -> None:
+    http = RecordingHttp()
+    adapter = KeysSoAdapter("https://api.keys.so", "secret", http=http)
+    with pytest.raises(ValueError):
+        await adapter.query(path, params)
+    assert http.calls == []
+
+
+@pytest.mark.parametrize(("value", "expected"), [(True, 1), (False, 0), (1, 1), (0, 0), ("1", 1), ("0", 0)])
+def test_full_flag_accepts_booleans_and_binary_values(value: Any, expected: int) -> None:
+    _, validated = KeysSoAdapter.validate(
+        "/report/simple/context/ads/archive", {"domain": "example.com", "full": value}
+    )
+    assert validated["full"] == expected and type(validated["full"]) is int

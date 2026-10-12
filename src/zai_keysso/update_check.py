@@ -1,13 +1,15 @@
 """Read-only update suggestion: compare the installed version with the latest GitHub release.
 
 Never installs anything. One unauthenticated HTTPS GET to the public GitHub API, a short
-timeout, a ~24h local cache and graceful failure offline. Opt out with
-KEYSSO_DISABLE_UPDATE_CHECK=1.
+timeout, a ~24h local cache and graceful failure offline. Every attempt is recorded in the
+cache: after a failure the next fetch waits 30 minutes, and a forced refresh is honoured at
+most once a minute. Opt out with KEYSSO_DISABLE_UPDATE_CHECK=1.
 """
 
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
 import threading
@@ -30,9 +32,15 @@ LATEST_RELEASE_API = f"https://api.github.com/repos/{REPOSITORY}/releases/latest
 RELEASES_URL = f"https://github.com/{REPOSITORY}/releases"
 CACHE_FILE = "update-check.json"
 CACHE_TTL_SECONDS = 24 * 3600
-FORCE_MIN_INTERVAL_SECONDS = 300
+FAILURE_BACKOFF_SECONDS = 30 * 60
+FORCE_MIN_INTERVAL_SECONDS = 60
 TIMEOUT_SECONDS = 3.0
-_TAG = re.compile(r"v?(\d{1,6}(?:\.\d{1,6}){0,3})\Z")
+# Plain release tags only (ASCII digits, up to four parts). Anything else is treated as "no release".
+_VERSION = r"[0-9]{1,6}(?:\.[0-9]{1,6}){0,3}"
+_TAG = re.compile(rf"v?({_VERSION})")
+_PLAIN = re.compile(_VERSION)
+_RELEASE_URL = re.compile(rf"{re.escape(RELEASES_URL)}(?:/tag/v?{_VERSION})?")
+_ERROR_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,63}")
 _TRUE = {"1", "true", "yes", "on"}
 
 Fetch = Callable[[], dict[str, Any]]
@@ -45,7 +53,7 @@ def disabled() -> bool:
 def parse_version(value: object) -> tuple[int, ...] | None:
     if not isinstance(value, str):
         return None
-    match = _TAG.fullmatch(value.strip())
+    match = _TAG.fullmatch(value)
     if match is None:
         return None
     parts = [int(part) for part in match.group(1).split(".")]
@@ -79,43 +87,86 @@ def fetch_latest_release() -> dict[str, Any]:
     return payload
 
 
+def _timestamp(value: object) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+
+
 def _release_record(payload: dict[str, Any], now: float) -> dict[str, Any]:
     tag = payload.get("tag_name")
-    version = parse_version(tag)
-    if version is None or payload.get("draft") or payload.get("prerelease"):
+    match = _TAG.fullmatch(tag) if isinstance(tag, str) else None
+    if match is None or payload.get("draft") or payload.get("prerelease"):
         raise ValueError("latest release has no stable version tag")
     url = payload.get("html_url")
-    if not isinstance(url, str) or not url.startswith(f"https://github.com/{REPOSITORY}/releases/"):
+    if not isinstance(url, str) or _RELEASE_URL.fullmatch(url) is None:
         url = RELEASES_URL
-    return {"latest_version": str(tag).strip().removeprefix("v"), "release_url": url, "checked_at": now}
+    return {"latest_version": match.group(1), "release_url": url, "checked_at": now}
 
 
-def _read_cache(path: Path) -> dict[str, Any] | None:
-    try:
-        if path.stat().st_size > 4096:
-            return None
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return None
+def _good_record(data: dict[str, Any]) -> dict[str, Any] | None:
+    latest, url, checked = data.get("latest_version"), data.get("release_url"), data.get("checked_at")
     if (
-        not isinstance(data, dict)
-        or parse_version(data.get("latest_version")) is None
-        or not isinstance(data.get("checked_at"), (int, float))
-        or not isinstance(data.get("release_url"), str)
-        or not data["release_url"].startswith(f"https://github.com/{REPOSITORY}/releases")
+        not isinstance(latest, str)
+        or _PLAIN.fullmatch(latest) is None
+        or not isinstance(url, str)
+        or _RELEASE_URL.fullmatch(url) is None
+        or not _timestamp(checked)
     ):
         return None
-    return data
+    return {"latest_version": latest, "release_url": url, "checked_at": checked}
 
 
-def _write_cache(path: Path, record: dict[str, Any]) -> None:
+def _read_state(path: Path) -> dict[str, Any]:
+    """Last good release (validated like fresh metadata) plus the last attempt time and outcome."""
+    state: dict[str, Any] = {"good": None, "attempted_at": None, "last_error": None}
+    try:
+        if path.stat().st_size > 4096:
+            return state
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return state
+    if not isinstance(data, dict):
+        return state
+    good = _good_record(data)
+    state["good"] = good
+    attempted = data.get("attempted_at")
+    if _timestamp(attempted):
+        state["attempted_at"] = attempted
+    elif good is not None:
+        state["attempted_at"] = good["checked_at"]
+    error = data.get("last_error")
+    if isinstance(error, str) and _ERROR_NAME.fullmatch(error):
+        state["last_error"] = error
+    elif error is not None or (good is None and state["attempted_at"] is not None):
+        state["last_error"] = "Error"
+    return state
+
+
+def _write_state(path: Path, good: dict[str, Any] | None, attempted_at: float, error: str | None) -> None:
+    record = {**(good or {}), "attempted_at": attempted_at, "last_error": error}
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+        temporary = path.with_name(f".{path.name}.{os.getpid()}.{threading.get_ident()}.tmp")
         temporary.write_text(json.dumps(record, sort_keys=True), encoding="utf-8")
         os.replace(temporary, path)
     except OSError:
         pass  # The cache is an optimisation; never fail the caller.
+
+
+def _within(start: float | None, now: float, seconds: float) -> bool:
+    return start is not None and 0 <= now - start < seconds
+
+
+def _fresh(state: dict[str, Any], now: float) -> bool:
+    good = state["good"]
+    return good is not None and _within(good["checked_at"], now, CACHE_TTL_SECONDS)
+
+
+def _fetch_due(state: dict[str, Any], now: float, force: bool) -> bool:
+    if force:
+        return not _within(state["attempted_at"], now, FORCE_MIN_INTERVAL_SECONDS)
+    if _fresh(state, now):
+        return False
+    return not (state["last_error"] and _within(state["attempted_at"], now, FAILURE_BACKOFF_SECONDS))
 
 
 def _view(record: dict[str, Any], source: str) -> dict[str, Any]:
@@ -137,8 +188,24 @@ def _view(record: dict[str, Any], source: str) -> dict[str, Any]:
     }
 
 
+def _unavailable(error: str, good: dict[str, Any] | None, retry_after: float | None = None) -> dict[str, Any]:
+    result: dict[str, Any] = {
+        "enabled": True,
+        "status": "unavailable",
+        "current_version": __version__,
+        "update_available": None,
+        "error": error,
+        "releases_url": RELEASES_URL,
+    }
+    if retry_after is not None:
+        result["retry_after_unix"] = int(retry_after)
+    if good is not None:
+        result["last_known"] = _view(good, "stale_cache")
+    return result
+
+
 def check_update(
-    cache_path: Path, *, force: bool = False, fetch: Fetch = fetch_latest_release, now: float | None = None
+    cache_path: Path, *, force: bool = False, fetch: Fetch | None = None, now: float | None = None
 ) -> dict[str, Any]:
     """Return current/latest version and an update command; never raises."""
     if disabled():
@@ -150,27 +217,23 @@ def check_update(
             "note": f"Update checks are disabled by {ENV_DISABLE}.",
         }
     now = time.time() if now is None else now
-    cached = _read_cache(cache_path)
-    if cached is not None:
-        age = now - cached["checked_at"]
-        fresh = 0 <= age < CACHE_TTL_SECONDS
-        if (fresh and not force) or (force and 0 <= age < FORCE_MIN_INTERVAL_SECONDS):
-            return _view(cached, "cache")
+    state = _read_state(cache_path)
+    good = state["good"]
+    if not _fetch_due(state, now, force):
+        if good is not None and (_fresh(state, now) or state["last_error"] is None):
+            return _view(good, "cache")
+        attempted = state["attempted_at"] if state["attempted_at"] is not None else now
+        wait = FORCE_MIN_INTERVAL_SECONDS if force else FAILURE_BACKOFF_SECONDS
+        return _unavailable(state["last_error"] or "Throttled", good, attempted + wait)
+    fetch = fetch_latest_release if fetch is None else fetch
     try:
         record = _release_record(fetch(), now)
     except Exception as exc:  # offline, rate limited, malformed: degrade quietly
-        result: dict[str, Any] = {
-            "enabled": True,
-            "status": "unavailable",
-            "current_version": __version__,
-            "update_available": None,
-            "error": type(exc).__name__,
-            "releases_url": RELEASES_URL,
-        }
-        if cached is not None:
-            result["last_known"] = _view(cached, "stale_cache")
-        return result
-    _write_cache(cache_path, record)
+        error = type(exc).__name__
+        error = error if _ERROR_NAME.fullmatch(error) else "Error"
+        _write_state(cache_path, good, now, error)
+        return _unavailable(error, good)
+    _write_state(cache_path, record, now, None)
     return _view(record, "github")
 
 
@@ -178,10 +241,10 @@ def cached_hint(cache_path: Path) -> str | None:
     """Short startup hint from the local cache only; never touches the network."""
     if disabled():
         return None
-    cached = _read_cache(cache_path)
-    if cached is None:
+    good = _read_state(cache_path)["good"]
+    if good is None:
         return None
-    view = _view(cached, "cache")
+    view = _view(good, "cache")
     if not view["update_available"]:
         return None
     return (
@@ -191,11 +254,11 @@ def cached_hint(cache_path: Path) -> str | None:
 
 
 def refresh_in_background(cache_path: Path) -> threading.Thread | None:
-    """Refresh a stale cache in a daemon thread so the next start can show a hint."""
-    if disabled():
-        return None
-    cached = _read_cache(cache_path)
-    if cached is not None and 0 <= time.time() - cached["checked_at"] < CACHE_TTL_SECONDS:
+    """Refresh a stale cache in a daemon thread so the next start can show a hint.
+
+    Obeys the same rules as the tool: a fresh cache or a failure in the last 30 minutes skips it.
+    """
+    if disabled() or not _fetch_due(_read_state(cache_path), time.time(), False):
         return None
     thread = threading.Thread(target=check_update, args=(cache_path,), name="update-check", daemon=True)
     thread.start()
