@@ -45,6 +45,20 @@ coordinated ledger and is not supported in this release.
 Use private service-to-service networking plus TLS termination for deployment;
 HTTP bearer authentication is mandatory even on the private network.
 
+## Update check
+
+`keysso_check_update` compares the installed version with the latest GitHub
+release and suggests an install command; nothing is installed automatically.
+Unless `KEYSSO_DISABLE_UPDATE_CHECK=1` is set, the server calls `api.github.com`
+(anonymous, at most once a day) in a background thread at startup and when the
+tool runs, so HTTP/server deployments make this outbound request too. The result
+is cached in `update-check.json` next to the state database. Every attempt is
+recorded there: after a failure the next request waits 30 minutes, and
+`force_refresh` is honoured at most once a minute. Only plain version tags
+(`v1.2.3`) are accepted. The tool goes through the same authorization and
+audit as the other tools (in delegated mode, `tool: "keysso_check_update"` and
+`request_hash` of `{"force_refresh": ...}`), but spends no Keys.so quota.
+
 ## Release checks
 
 See [installation and verification](../INSTALL.md). No live provider requests run in offline tests.

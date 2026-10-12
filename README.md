@@ -81,7 +81,7 @@ Ask: “Export a competitor’s keywords excluding my domain, in CSV. Show wheth
 
 ### Updates
 
-`keysso_check_update` compares the installed version with the latest [GitHub release](https://github.com/zai-one/keysso-mcp/releases) and returns the release link and the matching `uv tool install --force ...` command. It never installs anything and uses no Keys.so quota. The result is cached for 24 hours next to the state database; when a newer release is cached, the server instructions mention it once. Set `KEYSSO_DISABLE_UPDATE_CHECK=1` to turn off both the tool's network request and the startup refresh.
+`keysso_check_update` compares the installed version with the latest [GitHub release](https://github.com/zai-one/keysso-mcp/releases) and returns the release link and the matching `uv tool install --force ...` command. It never installs anything and uses no Keys.so quota. The result is cached for 24 hours next to the state database; when a newer release is cached, the server instructions mention it once. After a failed request it waits 30 minutes, and `force_refresh` works at most once a minute. Set `KEYSSO_DISABLE_UPDATE_CHECK=1` to turn off both the tool's network request and the startup refresh.
 
 This server exposes read-only reports. Available data and request limits depend on your Keys.so account. See [request limits and access settings](docs/RUNTIME.md).
 

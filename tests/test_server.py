@@ -273,3 +273,83 @@ async def test_caller_cancellation_stops_upstream_and_finishes_audit(
         assert db.execute("SELECT outcome FROM calls").fetchone()[0] == "cancelled"
         assert db.execute("SELECT COUNT(*) FROM leases").fetchone()[0] == 0
     assert stopped.is_set()
+
+
+@pytest.mark.parametrize(
+    "params",
+    [
+        {"domain": "example.com", "full": [1]},
+        {"keyword": ["a"]},
+        {"keyword": "a", "base": ["msk"]},
+    ],
+)
+async def test_wrongly_typed_query_params_are_validation_failures(
+    tmp_path: Path, key_pair: RSAKeyPair, params: dict[str, Any]
+) -> None:
+    recorder = Recorder()
+    config = configuration(tmp_path, key_pair, auth_mode="operator")
+    server = create_server(config, transport="stdio", http_factory=recorder.factory)
+    path = "/report/simple/context/ads/archive" if "full" in params else "/report/simple/keyword_dashboard"
+    async with Client(server) as client:
+        with pytest.raises(ToolError, match="validation_failed"):
+            await client.call_tool("keys_so_query", {"path": path, "params": params})
+    assert recorder.calls == []
+    with sqlite3.connect(config.state_path) as db:
+        assert db.execute("SELECT COUNT(*) FROM attempts").fetchone()[0] == 0
+
+
+UPDATE_ARGS = {"force_refresh": False}
+
+
+def update_bearer(key_pair: RSAKeyPair, **claims: Any) -> str:
+    return bearer(key_pair, UPDATE_ARGS, **{"tool": "keysso_check_update", **claims})
+
+
+async def test_check_update_is_authorized_and_audited_without_provider_quota(
+    tmp_path: Path, key_pair: RSAKeyPair
+) -> None:
+    recorder = Recorder()
+    config = configuration(tmp_path, key_pair)
+    server = create_server(config, http_factory=recorder.factory)
+    token = update_bearer(key_pair)
+    async with connection(server, token) as client:
+        result = (await client.call_tool("keysso_check_update", {})).data
+        assert result["status"] == "disabled"  # tests keep the network check off
+        with pytest.raises(ToolError, match="provider_disabled"):
+            await client.call_tool("keysso_check_update", {})  # one delegation, one call
+    assert recorder.calls == []
+    with sqlite3.connect(config.state_path) as db:
+        assert db.execute("SELECT actor, outcome FROM calls").fetchall() == [("alice", "success")]
+        assert db.execute("SELECT COUNT(*) FROM attempts").fetchone()[0] == 0
+
+
+@pytest.mark.parametrize(
+    "claims",
+    [
+        {"account_id": "other"},
+        {"tool": "keys_so_query"},
+        {"request_hash": request_hash({"force_refresh": True})},
+        {"jti": ""},
+        {"exp": int(time.time()) + 3600},
+    ],
+)
+async def test_check_update_rejects_bad_identity_or_delegation(
+    tmp_path: Path, key_pair: RSAKeyPair, claims: dict[str, Any]
+) -> None:
+    config = configuration(tmp_path, key_pair)
+    server = create_server(config)
+    async with connection(server, update_bearer(key_pair, **claims)) as client:
+        with pytest.raises(ToolError, match="provider_disabled"):
+            await client.call_tool("keysso_check_update", {})
+    with sqlite3.connect(config.state_path) as db:
+        assert db.execute("SELECT COUNT(*) FROM calls").fetchone()[0] == 0
+
+
+async def test_check_update_account_bound_in_operator_http_mode(tmp_path: Path, key_pair: RSAKeyPair) -> None:
+    config = configuration(tmp_path, key_pair, auth_mode="operator")
+    server = create_server(config)
+    async with connection(server, update_bearer(key_pair, account_id="other")) as client:
+        with pytest.raises(ToolError, match="provider_disabled"):
+            await client.call_tool("keysso_check_update", {})
+    async with connection(server, update_bearer(key_pair)) as client:
+        assert (await client.call_tool("keysso_check_update", {})).data["status"] == "disabled"

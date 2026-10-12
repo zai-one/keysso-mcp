@@ -102,6 +102,13 @@ def _validated_domain(value: object, field: str) -> str:
     return normalized
 
 
+def _text(value: object, field: str) -> str:
+    # Never stringify lists, numbers or booleans into a provider parameter.
+    if not isinstance(value, str):
+        raise ValueError(f"{field} must be a string")
+    return value
+
+
 def _validated_positive_int(value: object, field: str, maximum: int) -> int:
     if isinstance(value, bool):
         raise ValueError(f"{field} must be a positive integer")
@@ -156,25 +163,28 @@ class KeysSoAdapter:
         if unknown:
             raise ValueError("unsupported Keys.so parameters: " + ", ".join(unknown))
         validated = dict(params)
+        for field in ("domain", "incl", "excl", "base", "view", "keyword", "month", "sort"):
+            if field in validated:
+                _text(validated[field], field)
         if "domain" in validated:
             validated["domain"] = _validated_domain(validated["domain"], "domain")
         if "incl" in validated:
-            domains = [item.strip() for item in str(validated["incl"]).split(",") if item.strip()]
+            domains = [item.strip() for item in validated["incl"].split(",") if item.strip()]
             if not domains or len(domains) > 20:
                 raise ValueError("incl must contain between 1 and 20 domains")
             validated["incl"] = ",".join(_validated_domain(item, "incl") for item in domains)
-        if str(validated.get("excl", "")):
-            domains = [item.strip() for item in str(validated["excl"]).split(",") if item.strip()]
+        if validated.get("excl", ""):
+            domains = [item.strip() for item in validated["excl"].split(",") if item.strip()]
             if len(domains) > 20:
                 raise ValueError("excl must contain at most 20 domains")
             validated["excl"] = ",".join(_validated_domain(item, "excl") for item in domains)
         if "base" in validated:
-            base = str(validated["base"]).strip().lower()
+            base = validated["base"].strip().lower()
             if re.fullmatch(r"[a-z0-9_-]{1,32}", base) is None:
                 raise ValueError("base is not allowed")
             validated["base"] = base
         if "view" in validated:
-            view = str(validated["view"]).strip().lower()
+            view = validated["view"].strip().lower()
             if view not in ALLOWED_VIEWS:
                 raise ValueError("view is not allowed")
             validated["view"] = view
@@ -189,12 +199,12 @@ class KeysSoAdapter:
             if field in validated:
                 validated[field] = _validated_positive_int(validated[field], field, maximum)
         if "keyword" in validated:
-            keyword = " ".join(str(validated["keyword"]).split())
+            keyword = " ".join(validated["keyword"].split())
             if not keyword or len(keyword) > MAX_KEYWORD_CHARS:
                 raise ValueError(f"keyword must contain 1-{MAX_KEYWORD_CHARS} characters")
             validated["keyword"] = keyword
         if "month" in validated:
-            month = str(validated["month"]).strip()
+            month = validated["month"].strip()
             if re.fullmatch(r"\d{4}-\d{2}", month) is None:
                 raise ValueError("month must use YYYY-MM")
             try:
@@ -203,11 +213,13 @@ class KeysSoAdapter:
                 raise ValueError("month must use YYYY-MM") from exc
             validated["month"] = month
         if "full" in validated:
-            if not isinstance(validated["full"], bool) and validated["full"] not in {0, 1, "0", "1"}:
+            full = validated["full"]
+            # Exact types only: an unhashable list must not reach a set lookup, a float is not a flag.
+            if not (isinstance(full, (bool, int, str)) and full in (0, 1, "0", "1")):
                 raise ValueError("full must be a boolean")
-            validated["full"] = int(validated["full"] in {1, "1"})  # True == 1
+            validated["full"] = int(full)
         if "sort" in validated:
-            sort = str(validated["sort"]).strip()
+            sort = validated["sort"].strip()
             if not re.fullmatch(
                 r"[a-zA-Z0-9_]{1,64}\|(asc|desc)(,[a-zA-Z0-9_]{1,64}\|(asc|desc)){0,2}", sort
             ):

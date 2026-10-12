@@ -39,6 +39,9 @@ from zai_keysso.update_check import CACHE_FILE, cached_hint, check_update, refre
 TOOL_NAME = "keys_so_query"
 # MCP tool annotations: every Keys.so tool only reads provider data (and spends request quota).
 READ_ONLY = {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True}
+# The update check reads GitHub, not Keys.so. Not idempotent: force_refresh may fetch again and
+# rewrite the local version cache, so repeated calls can change what later calls return.
+UPDATE_CHECK = {**READ_ONLY, "idempotentHint": False}
 SCOPE = "keys_so:read"
 OPERATION_TIMEOUT_SECONDS = 75.0
 T = TypeVar("T")
@@ -201,7 +204,10 @@ def create_server(
         begun = False
         try:
             identity = authorize(config, transport, arguments, tool_name)
-            validate()
+            try:
+                validate()
+            except TypeError as exc:  # a wrongly typed argument is a validation error, not a failure
+                raise ValueError("invalid parameter type") from exc
             store.begin(
                 execution_id,
                 identity["request_id"],
@@ -401,14 +407,47 @@ def create_server(
             "keysso_ai_tracker", arguments, lambda: ai_tracker_request(report, tracker_id, **optional), query
         )
 
-    @server.tool(annotations=READ_ONLY)
+    async def execute_local(
+        tool_name: str, arguments: dict[str, Any], operation: Callable[[], Awaitable[dict[str, Any]]]
+    ) -> dict[str, Any]:
+        """Authorize and audit a tool that never calls Keys.so: no provider admission or quota."""
+        execution_id = uuid4().hex
+        begun = False
+        try:
+            identity = authorize(config, transport, arguments, tool_name)
+            store.begin(
+                execution_id,
+                identity["request_id"],
+                identity["actor"],
+                request_hash(arguments),
+                identity.get("nonce"),
+                identity.get("expires"),
+            )
+            begun = True
+            payload = await operation()
+            store.finish(execution_id, "success")
+            return payload
+        except asyncio.CancelledError:
+            if begun:
+                store.finish(execution_id, "cancelled")
+            raise
+        except Exception as exc:
+            if begun:
+                store.finish(execution_id, "error")
+            raise _safe_error(exc) from None
+
+    @server.tool(annotations=UPDATE_CHECK)
     async def keysso_check_update(force_refresh: bool = False) -> dict[str, Any]:
         """Compare the installed version with the latest GitHub release and suggest an update command.
 
-        Read-only; never installs anything and spends no Keys.so quota. Uses a 24h cache.
-        Set KEYSSO_DISABLE_UPDATE_CHECK=1 to opt out.
+        Read-only; never installs anything and spends no Keys.so quota. Uses a 24h cache; a forced
+        refresh runs at most once a minute. Set KEYSSO_DISABLE_UPDATE_CHECK=1 to opt out.
         """
-        return await asyncio.to_thread(check_update, update_cache, force=force_refresh)
+
+        async def operation() -> dict[str, Any]:
+            return await asyncio.to_thread(check_update, update_cache, force=force_refresh)
+
+        return await execute_local("keysso_check_update", {"force_refresh": force_refresh}, operation)
 
     return server
 
