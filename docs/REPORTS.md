@@ -48,6 +48,33 @@ cells empty. String cells beginning with a formula marker are prefixed with an
 apostrophe; numeric values remain numbers. Field-aware secret redaction happens
 before export. `complete` describes row coverage, not unredacted field contents.
 
+## Ad archives and phrase reports
+
+`keys_so_query` also accepts the monthly Yandex ad archive (Keys.so API
+[changelog](https://www.keys.so/ru/api-changelog) 1.0.24–1.0.26):
+`/report/simple/context/ads/archive` (`full=true` adds keywords per ad),
+`/report/simple/context/ads/archive/months`, `/report/simple/context/keywords/archive`,
+`/report/simple/context/keywords/byads/archive` (`ads_id`),
+`/report/simple/context/keyword/ads/archive` and `.../archive/months` (`keyword`).
+`month` is `YYYY-MM`; without it Keys.so uses the current month. Phrase reports
+`/report/simple/keyword_dashboard` and `/report/simple/similarkeys` take `keyword`.
+
+Since 1.0.25 Keys.so answers HTTP 400 to sorting context keyword reports by
+`header`, `txt` or `url`; the keyword ad archive sorts only by `keyscnt` or `serp`.
+Such sorts are rejected locally before any quota is spent.
+
+```json
+{"path": "/report/simple/context/keywords/archive", "params": {"domain": "example.com", "base": "msk", "month": "2026-09", "sort": "wsk|desc"}}
+```
+
+## AI tracker
+
+`keysso_ai_tracker` reads [AI tracker](https://apidoc.keys.so/) data with GET
+requests only. Use `report=projects` to find a `tracker_id`, then `entity`, `dates`,
+`report` (`date_from`/`date_to`), `mentions`, `citation`, `reference`, `sources`
+(`view=url|domain`), `competitors` or `prompt` (`prompt_id` and `date`). Filter by
+`systems` (AI system IDs listed in the tool description) and prompt `groups`.
+
 ## Delegated HTTP
 
 Use the exact new tool name in the delegation's `tool` claim. Its `request_hash`

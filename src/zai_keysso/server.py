@@ -6,6 +6,7 @@ import json
 import math
 import time
 from collections.abc import Awaitable, Callable
+from pathlib import Path
 from typing import Any, Literal, TypeVar
 from uuid import uuid4
 
@@ -16,6 +17,7 @@ from fastmcp.server.dependencies import get_access_token
 
 from zai_keysso import __version__
 from zai_keysso.adapter import KeysSoAdapter
+from zai_keysso.ai_tracker import ai_tracker_request
 from zai_keysso.catalog import report_catalog
 from zai_keysso.coalescing import AsyncSingleFlight
 from zai_keysso.config import ServiceConfig
@@ -32,8 +34,11 @@ from zai_keysso.transport import (
     RetryPolicy,
     request_hash,
 )
+from zai_keysso.update_check import CACHE_FILE, cached_hint, check_update, refresh_in_background
 
 TOOL_NAME = "keys_so_query"
+# MCP tool annotations: every Keys.so tool only reads provider data (and spends request quota).
+READ_ONLY = {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True}
 SCOPE = "keys_so:read"
 OPERATION_TIMEOUT_SECONDS = 75.0
 T = TypeVar("T")
@@ -172,7 +177,14 @@ def create_server(
         config.principal_rate_limit,
         config.max_concurrency,
     )
-    server = FastMCP("Keysso MCP", version=__version__, auth=auth, mask_error_details=True)
+    update_cache = update_cache_path(config)
+    server = FastMCP(
+        "Keysso MCP",
+        version=__version__,
+        auth=auth,
+        mask_error_details=True,
+        instructions=cached_hint(update_cache),
+    )
 
     @server.resource("keysso://reports", mime_type="application/json")
     def reports() -> str:
@@ -226,7 +238,7 @@ def create_server(
                 store.finish(execution_id, "error")
             raise _safe_error(exc) from None
 
-    @server.tool
+    @server.tool(annotations=READ_ONLY)
     async def keys_so_query(path: str, params: dict[str, Any]) -> dict[str, Any]:
         """Run one read-only Keys.so report from the fixed path and parameter allowlist."""
 
@@ -240,7 +252,7 @@ def create_server(
             query,
         )
 
-    @server.tool
+    @server.tool(annotations=READ_ONLY)
     async def keysso_domain_report(
         report: Literal["keywords", "competitors", "pages", "backlinks"],
         domain: str,
@@ -286,7 +298,7 @@ def create_server(
 
         return await execute("keysso_domain_report", arguments, validate, query)
 
-    @server.tool
+    @server.tool(annotations=READ_ONLY)
     async def keysso_compare_domains(
         include: list[str],
         exclude: list[str],
@@ -332,7 +344,77 @@ def create_server(
 
         return await execute("keysso_compare_domains", arguments, validate, query)
 
+    @server.tool(annotations=READ_ONLY)
+    async def keysso_ai_tracker(
+        report: Literal[
+            "projects",
+            "entity",
+            "dates",
+            "report",
+            "mentions",
+            "citation",
+            "reference",
+            "sources",
+            "competitors",
+            "prompt",
+        ],
+        tracker_id: int | None = None,
+        date_from: str | None = None,
+        date_to: str | None = None,
+        systems: list[int] | None = None,
+        groups: list[str] | None = None,
+        search: str | None = None,
+        view: Literal["url", "domain"] | None = None,
+        last: bool | None = None,
+        prompt_id: int | None = None,
+        date: str | None = None,
+        page: int | None = None,
+        per_page: int | None = None,
+    ) -> dict[str, Any]:
+        """Read Keys.so AI tracker (GEO) data for your trackers; never creates, starts or deletes anything.
+
+        report=projects lists trackers (no tracker_id). With tracker_id: entity (brand, systems, groups),
+        dates, report (prompt mentions for date_from..date_to), mentions, citation (site cited in sources),
+        reference (brand vs competitors visibility), sources (view=url|domain), competitors,
+        prompt (answers for prompt_id on date). systems: 1 GigaChat, 3 DeepSeek, 5 Perplexity,
+        6 ChatGPT, 8 Alice AI in Search, 9 Google AI Mode, 10 Gemini, 11 Claude, 12 Alice AI chat.
+        """
+        optional = {
+            "date_from": date_from,
+            "date_to": date_to,
+            "systems": systems,
+            "groups": groups,
+            "search": search,
+            "view": view,
+            "last": last,
+            "prompt_id": prompt_id,
+            "date": date,
+            "page": page,
+            "per_page": per_page,
+        }
+        arguments = {"report": report, "tracker_id": tracker_id, **optional}
+
+        async def query(adapter: KeysSoAdapter) -> dict[str, Any]:
+            return {"payload": await adapter.ai_tracker(report, tracker_id, **optional)}
+
+        return await execute(
+            "keysso_ai_tracker", arguments, lambda: ai_tracker_request(report, tracker_id, **optional), query
+        )
+
+    @server.tool(annotations=READ_ONLY)
+    async def keysso_check_update(force_refresh: bool = False) -> dict[str, Any]:
+        """Compare the installed version with the latest GitHub release and suggest an update command.
+
+        Read-only; never installs anything and spends no Keys.so quota. Uses a 24h cache.
+        Set KEYSSO_DISABLE_UPDATE_CHECK=1 to opt out.
+        """
+        return await asyncio.to_thread(check_update, update_cache, force=force_refresh)
+
     return server
+
+
+def update_cache_path(config: ServiceConfig) -> Path:
+    return config.state_path.parent / CACHE_FILE
 
 
 def main() -> None:
@@ -353,6 +435,8 @@ def main() -> None:
             print(json.dumps(result, sort_keys=True))
             parser.exit(0 if result["ready"] else 2)
         server = create_server(config, transport=args.transport)
+        # Non-blocking: refresh a stale update cache for the next start; failures are silent.
+        refresh_in_background(update_cache_path(config))
     except (ValueError, OSError) as exc:
         parser.exit(2, f"configuration error: {type(exc).__name__}; check credential and policy files\n")
     if args.transport == "http":
