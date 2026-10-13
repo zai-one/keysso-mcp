@@ -1,6 +1,6 @@
 {
   "name": "keysso",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Keys.so competitive SEO/PPC research with agent skills",
   "author": {
     "name": "ZAI.ONE",
@@ -15,7 +15,7 @@
       "command": "uvx",
       "args": [
         "--from",
-        "git+https://github.com/zai-one/keysso-mcp",
+        "git+https://github.com/zai-one/keysso-mcp@v0.5.0",
         "keysso-mcp"
       ],
       "env": {
