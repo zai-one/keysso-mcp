@@ -162,6 +162,7 @@ async def test_new_tool_delegation_is_bound_to_name_arguments_and_nonce(tmp_path
         "max_pages": 2,
         "page_size": 2,
         "output": "json",
+        "fields": None,
     }
     source = Pages([page(1), page(2)])
     config = configuration(tmp_path, key_pair)

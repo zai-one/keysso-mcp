@@ -17,13 +17,22 @@ from fastmcp.server.dependencies import get_access_token
 
 from zai_keysso import __version__
 from zai_keysso.adapter import KeysSoAdapter
+from zai_keysso.agent_layer import apply as apply_agent_layer
+from zai_keysso.agent_layer import router_instructions
+from zai_keysso.agent_profile import PROFILE
 from zai_keysso.ai_tracker import ai_tracker_request
 from zai_keysso.catalog import report_catalog
 from zai_keysso.coalescing import AsyncSingleFlight
 from zai_keysso.config import ServiceConfig
 from zai_keysso.onboarding import check_config, load_config
 from zai_keysso.policy import PolicyStore
-from zai_keysso.reports import collect_report, comparison_request, domain_request, validate_bounds
+from zai_keysso.reports import (
+    collect_report,
+    comparison_request,
+    domain_request,
+    validate_bounds,
+    validate_fields,
+)
 from zai_keysso.sanitizer import redact_literal, sanitize_provider_response
 from zai_keysso.transport import (
     JsonHttpClient,
@@ -186,7 +195,7 @@ def create_server(
         version=__version__,
         auth=auth,
         mask_error_details=True,
-        instructions=cached_hint(update_cache),
+        instructions=router_instructions(PROFILE, cached_hint(update_cache)),
     )
 
     @server.resource("keysso://reports", mime_type="application/json")
@@ -268,6 +277,7 @@ def create_server(
         max_pages: int = 1,
         page_size: int = 100,
         output: Literal["json", "csv"] = "json",
+        fields: list[str] | None = None,
     ) -> dict[str, Any]:
         """Read up to five pages of a domain report. Return provenance, completeness and JSON or CSV.
 
@@ -283,10 +293,12 @@ def create_server(
             "max_pages": max_pages,
             "page_size": page_size,
             "output": output,
+            "fields": fields,
         }
 
         def validate():
             validate_bounds(start_page, max_pages, page_size, output)
+            validate_fields(fields)
             domain_request(report, domain, base, sort)
 
         async def query(adapter: KeysSoAdapter) -> dict[str, Any]:
@@ -300,6 +312,7 @@ def create_server(
                 page_size=page_size,
                 output=output,
                 secret=config.provider_token,
+                fields=fields,
             )
 
         return await execute("keysso_domain_report", arguments, validate, query)
@@ -314,6 +327,7 @@ def create_server(
         max_pages: int = 1,
         page_size: int = 100,
         output: Literal["json", "csv"] = "json",
+        fields: list[str] | None = None,
     ) -> dict[str, Any]:
         """Compare included domains and exclude others using Keys.so's comparison report.
 
@@ -329,10 +343,12 @@ def create_server(
             "max_pages": max_pages,
             "page_size": page_size,
             "output": output,
+            "fields": fields,
         }
 
         def validate():
             validate_bounds(start_page, max_pages, page_size, output)
+            validate_fields(fields)
             comparison_request(include, exclude, base, view)
 
         async def query(adapter: KeysSoAdapter) -> dict[str, Any]:
@@ -346,6 +362,7 @@ def create_server(
                 page_size=page_size,
                 output=output,
                 secret=config.provider_token,
+                fields=fields,
             )
 
         return await execute("keysso_compare_domains", arguments, validate, query)
@@ -436,6 +453,15 @@ def create_server(
                 store.finish(execution_id, "error")
             raise _safe_error(exc) from None
 
+    @server.tool(annotations=READ_ONLY)
+    async def keysso_limits() -> dict[str, Any]:
+        """Read remaining Keys.so plan limits per tool (GET /limits/all)."""
+
+        async def query(adapter: KeysSoAdapter) -> dict[str, Any]:
+            return {"payload": await adapter.limits()}
+
+        return await execute("keysso_limits", {}, lambda: None, query)
+
     @server.tool(annotations=UPDATE_CHECK)
     async def keysso_check_update(force_refresh: bool = False) -> dict[str, Any]:
         """Compare the installed version with the latest GitHub release and suggest an update command.
@@ -449,6 +475,7 @@ def create_server(
 
         return await execute_local("keysso_check_update", {"force_refresh": force_refresh}, operation)
 
+    apply_agent_layer(server, PROFILE)
     return server
 
 

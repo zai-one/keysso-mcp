@@ -9,6 +9,7 @@ from zai_keysso.ai_tracker import ai_tracker_request
 from zai_keysso.coalescing import AsyncSingleFlight
 from zai_keysso.transport import JsonHttpClient, ProviderError, request_hash
 
+LIMITS_PATH = "/limits/all"
 ALLOWED_PATHS = frozenset(
     {
         "/limits/all",
@@ -236,6 +237,10 @@ class KeysSoAdapter:
     async def ai_tracker(self, report: str, tracker_id: int | None = None, **arguments: Any) -> Any:
         path, params = ai_tracker_request(report, tracker_id, **arguments)
         return await self._get(path, params)
+
+    async def limits(self) -> Any:
+        """Remaining plan limits per tool: GET /limits/all (https://apidoc.keys.so/)."""
+        return await self._get(LIMITS_PATH, {})
 
     async def query(self, path: str, params: dict[str, Any]) -> Any:
         normalized_path, validated = self.validate(path, params)

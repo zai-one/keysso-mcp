@@ -76,6 +76,21 @@ def csv_export(rows: list[dict[str, Any]]) -> tuple[str, list[str]]:
     return stream.getvalue(), columns
 
 
+def validate_fields(fields: list[str] | None) -> None:
+    """Optional column projection: keeps responses small (e.g. ["word", "pos", "ws"])."""
+    if fields is None:
+        return
+    if not isinstance(fields, list) or not 1 <= len(fields) <= 30:
+        raise ValueError("fields must list 1-30 column names")
+    for name in fields:
+        if (
+            not isinstance(name, str)
+            or not name.replace("_", "").replace("-", "").isalnum()
+            or len(name) > 64
+        ):
+            raise ValueError("invalid field name")
+
+
 async def collect_report(
     adapter: KeysSoAdapter,
     path: str,
@@ -86,8 +101,10 @@ async def collect_report(
     page_size: int,
     output: str,
     secret: str = "",
+    fields: list[str] | None = None,
 ) -> dict[str, Any]:
     validate_bounds(start_page, max_pages, page_size, output)
+    validate_fields(fields)
     rows: list[dict[str, Any]] = []
     seen: set[str] = set()
     pages: list[int] = []
@@ -161,6 +178,9 @@ async def collect_report(
         "consistency": "live_pages_not_a_provider_snapshot",
         "format": output,
     }
+    if fields:
+        rows = [{key: row[key] for key in fields if key in row} for row in rows]
+        result["fields"] = list(fields)
     if output == "csv":
         value, columns = csv_export(rows)
         if len(value.encode("utf-8")) > MAX_BYTES:

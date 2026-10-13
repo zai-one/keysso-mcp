@@ -1,0 +1,27 @@
+{
+  "name": "keysso",
+  "version": "0.4.0",
+  "description": "Keys.so competitive SEO/PPC research with agent skills",
+  "author": {
+    "name": "ZAI.ONE",
+    "url": "https://github.com/zai-one"
+  },
+  "homepage": "https://github.com/zai-one/keysso-mcp",
+  "repository": "https://github.com/zai-one/keysso-mcp",
+  "license": "LicenseRef-ZAI-ONE",
+  "skills": "./skills/",
+  "mcpServers": {
+    "keysso": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "git+https://github.com/zai-one/keysso-mcp",
+        "keysso-mcp"
+      ],
+      "env": {
+        "KEYSSO_API_TOKEN_FILE": "${KEYSSO_API_TOKEN_FILE}",
+        "KEYSSO_STATE_PATH": "${KEYSSO_STATE_PATH}"
+      }
+    }
+  }
+}
