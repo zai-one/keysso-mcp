@@ -150,10 +150,14 @@ and open the other files on demand. Clients without skills get the same flows as
 | `keysso-competitor-research` | Domain dashboard, competitors, keyword gap, top pages and ads (quota-aware). |
 | `keysso-content-gap` | Phrases competitors rank for and you do not, grouped into topics. |
 | `keysso-phrase-report` | One phrase: frequency, similar phrases, who ranks and advertises. |
+| `keysso-semantic-core` | Semantics -> clusters -> positions inside Keys.so: expand seeds, check frequencies, cluster by SERP, monitor positions. |
 
 ## Toolsets and read-only mode
 
-`KEYSSO_TOOLSETS=all` (default) or a comma list (see `keysso://toolsets`); `KEYSSO_TOOLS=a,b` adds single tools,
+Default: `meta`, `reports`, `ai_tracker`. Opt-in (heavy, spend plan limits, need `confirm=true`):
+`jobs` (`keysso_keyword_job`: mass phrase check, semantic expansion, competitor share; `keysso_clustering`)
+and `monitoring` (`keysso_monitoring`: position projects, reports, compare, create from clusters, refresh).
+`KEYSSO_TOOLSETS=default,jobs,monitoring`, `all`, or a comma list (see `keysso://toolsets`, `keysso://guide/tool-map`); `KEYSSO_TOOLS=a,b` adds single tools,
 `KEYSSO_DISABLED_TOOLS=a,b` removes them, `KEYSSO_READ_ONLY=1` removes every write/paid tool.
 
 ## Example requests
@@ -164,6 +168,7 @@ and open the other files on demand. Clients without skills get the same flows as
 - Кто рекламируется по нашей тематике и с какими объявлениями?
 - Как часто бренд упоминается в ответах ChatGPT и Алисы?
 - Сколько лимитов Keys.so осталось?
+- Собери семантику по «натяжные потолки», кластеризуй и поставь на мониторинг позиций.
 <!-- agent-block:end -->
 
 ## Access and limits

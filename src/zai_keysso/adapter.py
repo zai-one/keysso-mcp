@@ -43,13 +43,44 @@ ALLOWED_PATHS = frozenset(
         "/report/simple/organic/sitepages",
         "/report/simple/organic/sitepages/withkeys",
         "/report/simple/similarkeys",
+        # Coverage round 2026-10 (apidoc.keys.so): pages, links, visibility, Direct, robots, Zen, groups.
+        "/report/simple/organic/concurent_pages",
+        "/report/simple/organic/keywords/bypage",
+        "/report/simple/organic/lost_pages",
+        "/report/simple/organic/ai-answers",
+        "/report/simple/links/outlinks",
+        "/report/simple/links/outlinks-domains",
+        "/report/simple/links/backlinks-ip",
+        "/report/simple/links/backlinks-ip/subnet",
+        "/report/simple/top_domain_visibility",
+        "/report/simple/direct/ads",
+        "/report/owner/subdomains",
+        "/report/ads/rsya",
+        "/report/group/list",
+        "/robots/dates",
+        "/robots/data",
+        "/zen/dashboard",
+        "/zen/top/channels",
+        "/zen/channel/publications",
+        "/zen/channel/new/top/publications",
+        "/projects",
+        "/projects/competitors",
     }
 )
 ALLOWED_PARAMS = frozenset(
     {
         "ads_id",
         "base",
+        "channel",
+        "date",
         "domain",
+        "forDay",
+        "groupingBy",
+        "id",
+        "includeSubLevels",
+        "kid",
+        "projectId",
+        "url",
         "excl",
         "full",
         "incl",
@@ -79,6 +110,11 @@ MAX_KEYWORD_CHARS = 512
 ALLOWED_VIEWS = frozenset({"organic", "context", "backlinks"})
 _DOMAIN = re.compile(r"(?=.{1,253}\Z)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9][a-z0-9-]{1,62}\Z")
 _RSYA_PATH = re.compile(r"/report/ads/rsya/domains/([^/]+)\Z")
+# Saved group reports (read-only): /report/group/<section>/<rid>; creation is not exposed.
+_GROUP_PATH = re.compile(
+    r"/report/group/(?:state|domains|organic/(?:keywords|concurents|sitepages)"
+    r"|context/(?:keywords|concurents|ads|ads/links|ads/facts))/[A-Za-z0-9:_-]{1,128}\Z"
+)
 
 
 class JsonRequester(Protocol):
@@ -155,7 +191,8 @@ class KeysSoAdapter:
     def validate(path: str, params: dict[str, Any]) -> tuple[str, dict[str, Any]]:
         normalized_path = "/" + path.strip().lstrip("/")
         rsya = _RSYA_PATH.fullmatch(normalized_path)
-        if normalized_path not in ALLOWED_PATHS and rsya is None:
+        group = _GROUP_PATH.fullmatch(normalized_path)
+        if normalized_path not in ALLOWED_PATHS and rsya is None and group is None:
             raise ValueError("Keys.so report path is not allowed")
         if rsya is not None:
             _validated_domain(rsya.group(1), "RSYA path")
@@ -164,7 +201,19 @@ class KeysSoAdapter:
         if unknown:
             raise ValueError("unsupported Keys.so parameters: " + ", ".join(unknown))
         validated = dict(params)
-        for field in ("domain", "incl", "excl", "base", "view", "keyword", "month", "sort"):
+        for field in (
+            "domain",
+            "incl",
+            "excl",
+            "base",
+            "view",
+            "keyword",
+            "month",
+            "sort",
+            "url",
+            "channel",
+            "groupingBy",
+        ):
             if field in validated:
                 _text(validated[field], field)
         if "domain" in validated:
@@ -195,6 +244,9 @@ class KeysSoAdapter:
             ("limit", 100),
             ("top", 100),
             ("ads_id", 2_147_483_647),
+            ("kid", 2_147_483_647),
+            ("id", 2_147_483_647),
+            ("projectId", 2_147_483_647),
         )
         for field, maximum in bounded_ints:
             if field in validated:
@@ -213,6 +265,24 @@ class KeysSoAdapter:
             except ValueError as exc:
                 raise ValueError("month must use YYYY-MM") from exc
             validated["month"] = month
+        for field in ("url", "channel", "groupingBy"):
+            if field in validated:
+                text = validated[field].strip()
+                if not 1 <= len(text) <= 2048 or re.search(r"[\x00-\x1f\x7f]", text):
+                    raise ValueError(f"{field} must contain 1-2048 printable characters")
+                validated[field] = text
+        for field in ("date", "forDay"):
+            if field in validated:
+                day = validated[field]
+                if not isinstance(day, str) or re.fullmatch(r"\d{4}-\d{2}-\d{2}", day.strip()) is None:
+                    raise ValueError(f"{field} must use YYYY-MM-DD")
+                date.fromisoformat(day.strip())
+                validated[field] = day.strip()
+        if "includeSubLevels" in validated:
+            flag = validated["includeSubLevels"]
+            if not (isinstance(flag, (bool, int, str)) and flag in (0, 1, "0", "1")):
+                raise ValueError("includeSubLevels must be a boolean")
+            validated["includeSubLevels"] = int(flag)
         if "full" in validated:
             full = validated["full"]
             # Exact types only: an unhashable list must not reach a set lookup, a float is not a flag.
@@ -245,6 +315,20 @@ class KeysSoAdapter:
     async def query(self, path: str, params: dict[str, Any]) -> Any:
         normalized_path, validated = self.validate(path, params)
         return await self._get(normalized_path, validated)
+
+    async def job(
+        self, method: str, path: str, params: dict[str, Any], payload: dict[str, Any] | None
+    ) -> Any:
+        """Keyword jobs, clustering and monitoring (paths built and validated by zai_keysso.jobs)."""
+        if method == "GET":
+            return await self._get(path, params)
+        return await self.http.request_json(
+            method,
+            f"{self.base_url}{path}",
+            headers=self._headers(),
+            payload=payload or {},
+            params=params or None,
+        )
 
     async def _get(self, normalized_path: str, validated: dict[str, Any]) -> Any:
         key = request_hash({"provider": "keys_so", "path": normalized_path, "params": validated})

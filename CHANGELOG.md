@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — API coverage round, semantics -> clusters -> positions, router eval
+
+- `keys_so_query` allowlist covers the rest of the read API (apidoc.keys.so, 2026-10): competitor pages, keywords by page (`url`, `includeSubLevels`), lost pages, organic AI answers, outlinks / outlink domains, links by IP and subnet, top-domain visibility, Direct ads by phrase (`kid`), RSYA, subdomains (`id`), robots.txt history (`date`), Zen dashboard/channels/publications, projects and project competitors, saved group reports (`/report/group/list`, `/report/group/<section>/<rid>`).
+- New opt-in toolsets (off by default, so the default tool list and token budget stay flat): `jobs` — `keysso_keyword_job` (keywords_by_list, extended_keywords, concurents_by_keywords: start -> status -> result) and `keysso_clustering` (create -> build -> status -> folders -> keywords); `monitoring` — `keysso_monitoring` (projects, entity, dates, report, compare, chart, limits; create from a clustering uid or phrases; start a refresh). Every start returns a free preview until `confirm=true`; `KEYSSO_READ_ONLY=1` removes them.
+- Skill `keysso-semantic-core` (self-contained semantics -> clusters -> positions), guide `keysso://guide/jobs`, prompt `semantic_core`.
+- Router: one line per intent (RU/EN words -> first tool; skill; guide) plus `keysso://playbook` and the generated `keysso://guide/tool-map` (every tool by toolset) as fallbacks. `KEYSSO_TOOLSETS` accepts `default` and `all`.
+- `tests/test_routing_eval.py` + `tests/evals/routing_cases.json`: 18 casual RU/EN requests; fails if any tool, skill or guide is unreachable from the router.
+
 ## 0.5.0 — Agent layer, limits and column projection
 
 - License: LicenseRef-ZAI-ONE 2.0 (source-available). Free install and use for yourself and your organisation, including commercial work; issues and pull requests welcome; copying code into other projects, redistribution, embedding and competing hosted services need written permission. Earlier releases keep their LicenseRef-ZAI-ONE 1.0 terms (see NOTICE). README first screen: one-line scope, why this MCP, maintenance and update check.

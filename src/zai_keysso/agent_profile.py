@@ -2,19 +2,30 @@
 
 from __future__ import annotations
 
-from zai_keysso.agent_layer import Profile, Prompt
+from zai_keysso.agent_layer import Profile, Prompt, Route, build_router
 
-ROUTER = """Keys.so MCP: read-only competitive SEO/PPC research (domains, keywords, pages, ads, AI answers).
-Toolsets: meta, reports, ai_tracker (see keysso://toolsets). Report paths and params: keysso://reports.
-Use Keys.so for market/competitor data on any domain; use Topvisor for your own tracked positions and
-Arsenkin for SERP parsing/clustering jobs.
-Quota: every report page spends plan requests; start with max_pages=1 and a small page_size
-(fields=[...] trims columns after fetch: saves tokens, not quota);
-check keysso_limits before large pulls. Base defaults to msk; ask the user for region if unclear.
-Partial results carry stop_reason: never call them a complete audit.
-Playbooks: skills keysso-competitor-research, keysso-phrase-report, keysso-content-gap; or keysso://playbook,
-keysso://guide/{metrics-glossary,ai-tracker,errors}.
-Errors: on 429 wait Retry-After; retry only when retryable."""
+ROUTES = (
+    Route("competitors", "конкуренты сайта, competitors, видимость, трафик", "keysso_domain_report",
+          "keysso-competitor-research", "metrics-glossary"),
+    Route("gap", "контент-гэп, чего нет у нас, gap, сравнить", "keysso_compare_domains",
+          "keysso-content-gap", "metrics-glossary"),
+    Route("phrase", "фраза, запрос, phrase, кто в топе, похожие", "keys_so_query", "keysso-phrase-report",
+          "metrics-glossary"),
+    Route("ads", "реклама, объявления, ads, РСЯ, архив, ссылки, доноры, анкоры, Дзен", "keys_so_query", "",
+          "tool-map"),
+    Route("semantics", "семантика, ядро, кластеры, кластеризация, мониторинг, cluster", "keysso_clustering",
+          "keysso-semantic-core", "jobs"),
+    Route("geo", "нейросети, ИИ-ответы, AI, ChatGPT, GEO, бренд", "keysso_ai_tracker", "", "ai-tracker"),
+    Route("limits", "лимиты, квота, ошибка, limits, error, 429", "keysso_limits", "", "errors"),
+)  # fmt: skip
+
+ROUTER = build_router(
+    "keysso",
+    "Keys.so MCP: competitor SEO/PPC research; keysso://toolsets. Pages spend quota: max_pages=1, "
+    "keysso_limits first, base msk unless told. stop_reason = partial, never complete.",
+    ROUTES,
+    "Opt-in jobs/monitoring spend limits: confirm=true only after user OK. Paths: keysso://reports.",
+)
 
 DESCRIPTIONS = {
     "keysso_limits": "Read remaining Keys.so plan limits per tool. Use before large multi-page pulls. "
@@ -29,6 +40,15 @@ DESCRIPTIONS = {
     "keysso_ai_tracker": "Read Keys.so AI-tracker (GEO) data: projects, mentions, citations, competitors, "
     "prompts. Use for brand visibility in AI answers; system IDs in keysso://guide/ai-tracker. Read-only. "
     "Cost: 1 request.",
+    "keysso_keyword_job": "Run a keyword tool job: mass phrase check, semantic expansion, "
+    "competitor share by phrases. Flow start -> status -> result. "
+    "Cost: start spends limits, needs confirm=true.",
+    "keysso_clustering": "Cluster phrases by SERP overlap: create -> build -> status -> folders -> "
+    "keywords. Use after collecting semantics. "
+    "Cost: create/build spend limits, need confirm=true.",
+    "keysso_monitoring": "Read or start Keys.so position monitoring. Reads: projects, report, "
+    "compare, chart, dates, limits; create from clusters, start refresh. "
+    "Cost: create/start need confirm=true.",
     "keysso_check_update": "Check for a newer server release; never installs. Cost: free, 24h cache.",
 }
 
@@ -36,9 +56,20 @@ TOOLSETS = {
     "meta": ("keysso_check_update", "keysso_limits"),
     "reports": ("keysso_domain_report", "keysso_compare_domains", "keys_so_query"),
     "ai_tracker": ("keysso_ai_tracker",),
+    "jobs": ("keysso_keyword_job", "keysso_clustering"),
+    "monitoring": ("keysso_monitoring",),
 }
+OPTIN = ("jobs", "monitoring")
 
 PROMPTS = (
+    Prompt(
+        "semantic_core",
+        "Semantics -> clusters -> positions for a site with Keys.so jobs (limit-aware).",
+        ("domain", "seeds", "base"),
+        "Build a semantic core for {domain} from seeds {seeds} (base {base}) following skill "
+        "keysso-semantic-core: expand, check frequencies, cluster, then monitor positions. "
+        "Show keysso_limits and ask before every confirm=true.",
+    ),
     Prompt(
         "competitor_research",
         "Competitor research for a domain with Keys.so (quota-aware).",
@@ -69,5 +100,7 @@ PROFILE = Profile(
     descriptions=DESCRIPTIONS,
     toolsets=TOOLSETS,
     prompts=PROMPTS,
+    routes=ROUTES,
+    optin=OPTIN,
     titles={"keys_so_query": "Keys.so: query report"},
 )

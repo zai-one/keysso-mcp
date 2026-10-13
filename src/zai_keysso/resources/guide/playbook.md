@@ -13,7 +13,13 @@ page spends plan requests.
 4. **Phrase** — `/report/simple/keyword_dashboard` and `/report/simple/similarkeys` with `keyword`.
 5. **Ads** — `/report/simple/context/ads`, `/report/simple/context/keywords`, archive by `month`.
 6. **AI answers (GEO)** — `keysso_ai_tracker` (see `keysso://guide/ai-tracker`).
+7. **Semantics → clusters → positions** (opt-in `jobs`, `monitoring`) — `keysso_keyword_job`,
+   `keysso_clustering`, `keysso_monitoring`; flow in `keysso://guide/jobs`, skill `keysso-semantic-core`.
+8. **More reports** — competitor pages, lost pages, keywords by page, outlinks, IP links, top
+   visibility, Direct ads by phrase, RSYA, subdomains, robots.txt history, Zen, saved group reports:
+   `keys_so_query` (paths in `keysso://reports`, every tool in `keysso://guide/tool-map`).
 
 Bases: `msk` Яндекс Москва (default), `spb`, `ekb`, … `gru` Google Москва, `zen` Дзен — full list in
 `keysso://guide/metrics-glossary`. All report paths/params: `keysso://reports`.
-Skills: `keysso-competitor-research`, `keysso-phrase-report`, `keysso-content-gap`.
+Skills: `keysso-competitor-research`, `keysso-phrase-report`, `keysso-content-gap`, `keysso-semantic-core`.
+Guides: `keysso://guide/metrics-glossary`, `keysso://guide/ai-tracker`, `keysso://guide/jobs`, `keysso://guide/errors`, `keysso://guide/tool-map`.
