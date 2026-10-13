@@ -180,6 +180,38 @@ async def test_new_tool_delegation_is_bound_to_name_arguments_and_nonce(tmp_path
         assert database.execute("select count(*) from attempts").fetchone()[0] == 2
 
 
+async def test_delegation_hash_matches_documented_set_and_binds_fields_only_when_given(tmp_path, key_pair):
+    # docs/REPORTS.md: the hashed object is the full argument set with defaults; `fields`
+    # joins it only when the call provides it. A gateway built to that contract must pass.
+    documented = {
+        "include": ["example.com"],
+        "exclude": ["other.example"],
+        "base": "msk",
+        "view": "organic",
+        "start_page": 1,
+        "max_pages": 1,
+        "page_size": 100,
+        "output": "json",
+    }
+    call = {"include": ["example.com"], "exclude": ["other.example"]}
+    source = Pages([page(1, total=1, size=100)] * 2)
+    config = configuration(tmp_path, key_pair)
+    server = create_server(config, http_factory=source.factory)
+    token = bearer(key_pair, documented, tool="keysso_compare_domains")
+    async with connection(server, token) as client:
+        assert (await client.call_tool("keysso_compare_domains", call)).data["complete"]
+    with_fields = {**call, "fields": ["word"]}
+    token = bearer(key_pair, documented, tool="keysso_compare_domains")
+    async with connection(server, token) as client:
+        with pytest.raises(ToolError, match="provider_disabled"):
+            await client.call_tool("keysso_compare_domains", with_fields)
+    token = bearer(key_pair, {**documented, "fields": ["word"]}, tool="keysso_compare_domains")
+    async with connection(server, token) as client:
+        result = (await client.call_tool("keysso_compare_domains", with_fields)).data
+    assert result["rows"] == [{"word": "keyword-0"}]
+    assert len(source.calls) == 2
+
+
 async def test_later_page_429_preserves_account_cooldown(tmp_path, key_pair):
     source = Pages([page(1), ProviderRateLimited("synthetic-secret", retry_after_seconds=60)])
     config = configuration(tmp_path, key_pair, auth_mode="operator")

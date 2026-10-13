@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Agent layer: router `instructions` (≤1200 chars: when Keys.so vs Topvisor/Arsenkin, quota rules), compact template descriptions and titles.
+- Toolsets `meta`, `reports`, `ai_tracker` (`KEYSSO_TOOLSETS`, `KEYSSO_TOOLS`, `KEYSSO_DISABLED_TOOLS`, `KEYSSO_READ_ONLY`); `keysso://toolsets`.
+- Resources `keysso://playbook`, `keysso://guide/{metrics-glossary,ai-tracker,errors}`; prompts `competitor_research`, `content_gap`, `phrase_report`.
+- Self-contained skills `keysso-competitor-research`, `keysso-content-gap`, `keysso-phrase-report` with references and templates; Claude Code plugin manifest, Cursor rule, `.agents/skills`.
+- New `keysso_limits` (`GET /limits/all`); `fields=[...]` column projection on `keysso_domain_report` and `keysso_compare_domains` (trims rows after fetch, so it saves tokens, not quota; part of the delegation hash only when provided; names absent from every row are listed in `missing_fields`).
+- `scripts/token_budget.py` + tests gate instruction, description and SKILL.md sizes.
+
 ## 0.4.0 — Ad archives, AI tracker and update hints
 
 - `keys_so_query`: monthly Yandex ad archives from Keys.so API 1.0.24–1.0.26 (`context/ads/archive`, `context/keywords/archive`, `context/keywords/byads/archive`, `context/keyword/ads/archive` and their `months` lists) with `month`, `keyword` and `full` parameters; `keyword_dashboard` and `similarkeys` phrase reports.

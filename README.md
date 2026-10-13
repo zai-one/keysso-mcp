@@ -73,6 +73,83 @@ The catalogue lists supported reports and parameters without spending an API req
 
 If tools do not appear, check the absolute path, whether the client can find `uv`, and the `--check-config` result. For access errors, check account credentials and permissions. [Installation and troubleshooting](INSTALL.md).
 
+
+<!-- agent-block:start -->
+## Install in your agent
+
+Run `keysso-mcp` straight from GitHub with [uv](https://docs.astral.sh/uv/). Pin a release tag (`@vX.Y.Z`) for
+reproducible installs; placeholders below are examples, keep secrets in files outside the repo.
+
+**Claude Code**
+
+```bash
+claude mcp add keysso --env KEYSSO_API_TOKEN_FILE=/path/to/keysso.token --env KEYSSO_STATE_PATH=/path/to/keysso.sqlite -- uvx --from git+https://github.com/zai-one/keysso-mcp keysso-mcp
+```
+
+Skills for Claude Code: copy `skills/*` into `~/.claude/skills/` (or install this repo as a plugin — it
+ships `.claude-plugin/plugin.json` with the skills and the MCP server).
+
+**Cursor** — `.cursor/mcp.json` ([one-click install](cursor://anysphere.cursor-deeplink/mcp/install?name=keysso&config=eyJjb21tYW5kIjogInV2eCIsICJhcmdzIjogWyItLWZyb20iLCAiZ2l0K2h0dHBzOi8vZ2l0aHViLmNvbS96YWktb25lL2tleXNzby1tY3AiLCAia2V5c3NvLW1jcCJdLCAiZW52IjogeyJLRVlTU09fQVBJX1RPS0VOX0ZJTEUiOiAiL3BhdGgvdG8va2V5c3NvLnRva2VuIiwgIktFWVNTT19TVEFURV9QQVRIIjogIi9wYXRoL3RvL2tleXNzby5zcWxpdGUifX0=)):
+
+```json
+{
+  "mcpServers": {
+    "keysso": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "git+https://github.com/zai-one/keysso-mcp",
+        "keysso-mcp"
+      ],
+      "env": {
+        "KEYSSO_API_TOKEN_FILE": "/path/to/keysso.token",
+        "KEYSSO_STATE_PATH": "/path/to/keysso.sqlite"
+      }
+    }
+  }
+}
+```
+
+**Codex** — `~/.codex/config.toml` (skills: copy `skills/*` into `~/.codex/skills/`, or keep the
+repo's `.agents/skills` link):
+
+```toml
+[mcp_servers.keysso]
+command = "uvx"
+args = ["--from", "git+https://github.com/zai-one/keysso-mcp", "keysso-mcp"]
+env = { KEYSSO_API_TOKEN_FILE = "/path/to/keysso.token", KEYSSO_STATE_PATH = "/path/to/keysso.sqlite" }
+```
+
+**Claude Desktop** — `claude_desktop_config.json`: the same `mcpServers` block as Cursor.
+
+## Skills (agent playbooks)
+
+Each skill is a self-contained folder `skills/<name>/` (`SKILL.md` + its own `references/`,
+`templates/`); copy the folder and it works. Agents load the short `SKILL.md` only when the task matches
+and open the other files on demand. Clients without skills get the same flows as MCP prompts and the
+`keysso://playbook` / `keysso://guide/{topic}` resources.
+
+| Skill | What it does |
+|---|---|
+| `keysso-competitor-research` | Domain dashboard, competitors, keyword gap, top pages and ads (quota-aware). |
+| `keysso-content-gap` | Phrases competitors rank for and you do not, grouped into topics. |
+| `keysso-phrase-report` | One phrase: frequency, similar phrases, who ranks and advertises. |
+
+## Toolsets and read-only mode
+
+`KEYSSO_TOOLSETS=all` (default) or a comma list (see `keysso://toolsets`); `KEYSSO_TOOLS=a,b` adds single tools,
+`KEYSSO_DISABLED_TOOLS=a,b` removes them, `KEYSSO_READ_ONLY=1` removes every write/paid tool.
+
+## Example requests
+
+- Кто основные конкуренты example.ru в Яндексе Москва?
+- Найди запросы, по которым конкуренты есть в ТОП, а мы нет.
+- Сделай отчёт по фразе «купить диван» в Санкт-Петербурге.
+- Кто рекламируется по нашей тематике и с какими объявлениями?
+- Как часто бренд упоминается в ответах ChatGPT и Алисы?
+- Сколько лимитов Keys.so осталось?
+<!-- agent-block:end -->
+
 ## Access and limits
 
 Use `keysso_domain_report` for keywords, competitors, pages or backlinks, and `keysso_compare_domains` for overlaps and gaps. Each can collect up to five pages and return JSON or CSV with source and completeness fields. The original `keys_so_query` still requests one page. [Report examples and limits](docs/REPORTS.md).
