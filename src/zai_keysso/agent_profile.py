@@ -8,7 +8,8 @@ ROUTER = """Keys.so MCP: read-only competitive SEO/PPC research (domains, keywor
 Toolsets: meta, reports, ai_tracker (see keysso://toolsets). Report paths and params: keysso://reports.
 Use Keys.so for market/competitor data on any domain; use Topvisor for your own tracked positions and
 Arsenkin for SERP parsing/clustering jobs.
-Quota: every report page spends plan requests; start with max_pages=1, small page_size and fields=[...];
+Quota: every report page spends plan requests; start with max_pages=1 and a small page_size
+(fields=[...] trims columns after fetch: saves tokens, not quota);
 check keysso_limits before large pulls. Base defaults to msk; ask the user for region if unclear.
 Partial results carry stop_reason: never call them a complete audit.
 Playbooks: skills keysso-competitor-research, keysso-phrase-report, keysso-content-gap; or keysso://playbook,
@@ -44,7 +45,7 @@ PROMPTS = (
         ("domain", "base"),
         "Research competitors of {domain} in Keys.so base {base}. Follow skill keysso-competitor-research: "
         "dashboard, competitors, keyword gap vs top 3, top pages, ads. "
-        "Use max_pages=1 and fields to save quota.",
+        "Use max_pages=1 to save quota and fields to trim columns.",
     ),
     Prompt(
         "content_gap",

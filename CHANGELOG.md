@@ -6,7 +6,7 @@
 - Toolsets `meta`, `reports`, `ai_tracker` (`KEYSSO_TOOLSETS`, `KEYSSO_TOOLS`, `KEYSSO_DISABLED_TOOLS`, `KEYSSO_READ_ONLY`); `keysso://toolsets`.
 - Resources `keysso://playbook`, `keysso://guide/{metrics-glossary,ai-tracker,errors}`; prompts `competitor_research`, `content_gap`, `phrase_report`.
 - Self-contained skills `keysso-competitor-research`, `keysso-content-gap`, `keysso-phrase-report` with references and templates; Claude Code plugin manifest, Cursor rule, `.agents/skills`.
-- New `keysso_limits` (`GET /limits/all`); `fields=[...]` column projection on `keysso_domain_report` and `keysso_compare_domains`.
+- New `keysso_limits` (`GET /limits/all`); `fields=[...]` column projection on `keysso_domain_report` and `keysso_compare_domains` (trims rows after fetch, so it saves tokens, not quota; part of the delegation hash only when provided; names absent from every row are listed in `missing_fields`).
 - `scripts/token_budget.py` + tests gate instruction, description and SKILL.md sizes.
 
 ## 0.4.0 — Ad archives, AI tracker and update hints

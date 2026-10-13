@@ -48,6 +48,12 @@ cells empty. String cells beginning with a formula marker are prefixed with an
 apostrophe; numeric values remain numbers. Field-aware secret redaction happens
 before export. `complete` describes row coverage, not unredacted field contents.
 
+`fields=[...]` (1-30 column names) on `keysso_domain_report` and
+`keysso_compare_domains` keeps only those columns in each row. The projection runs
+after the pages are fetched: it shrinks the response, not the quota spent. A
+requested name that occurs in none of the returned rows (for example a typo) is
+listed in `missing_fields`; check column names in a first small response.
+
 ## Ad archives and phrase reports
 
 `keys_so_query` also accepts the monthly Yandex ad archive (Keys.so API
@@ -80,6 +86,8 @@ requests only. Use `report=projects` to find a `tracker_id`, then `entity`, `dat
 Use the exact new tool name in the delegation's `tool` claim. Its `request_hash`
 must cover the complete argument object, including defaults: `base`, `sort`
 (domain reports only), `view` (comparisons only), `start_page`, `max_pages`,
-`page_size` and `output`. Defaults are visible in the MCP schema. The nonce is
+`page_size` and `output`. Defaults are visible in the MCP schema. `fields` is part
+of the hashed object only when the call provides it; an omitted (or null) `fields`
+is not included. The nonce is
 consumed once for the whole call; its pages share that execution's audit and
 deadline. A raw-query delegation does not authorize a typed report.

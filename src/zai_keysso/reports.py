@@ -179,6 +179,11 @@ async def collect_report(
         "format": output,
     }
     if fields:
+        if rows:
+            # A misspelled column would silently project to {}: name it instead.
+            missing = [key for key in fields if not any(key in row for row in rows)]
+            if missing:
+                result["missing_fields"] = missing
         rows = [{key: row[key] for key in fields if key in row} for row in rows]
         result["fields"] = list(fields)
     if output == "csv":

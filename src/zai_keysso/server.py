@@ -293,8 +293,10 @@ def create_server(
             "max_pages": max_pages,
             "page_size": page_size,
             "output": output,
-            "fields": fields,
         }
+        if fields is not None:
+            # Hashed for delegation only when provided, so the documented default set still matches.
+            arguments["fields"] = fields
 
         def validate():
             validate_bounds(start_page, max_pages, page_size, output)
@@ -343,8 +345,10 @@ def create_server(
             "max_pages": max_pages,
             "page_size": page_size,
             "output": output,
-            "fields": fields,
         }
+        if fields is not None:
+            # Hashed for delegation only when provided, so the documented default set still matches.
+            arguments["fields"] = fields
 
         def validate():
             validate_bounds(start_page, max_pages, page_size, output)

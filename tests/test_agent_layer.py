@@ -74,6 +74,18 @@ async def test_fields_projection_trims_rows():
         fields=["word"],
     )
     assert result["rows"] == [{"word": "keyword-0"}, {"word": "keyword-1"}, {"word": "keyword-2"}]
+    assert "missing_fields" not in result
+    typo = await reports.collect_report(
+        Pages([page(1), page(2)]),
+        "/report/simple/organic/keywords",
+        {"domain": "example.com"},
+        start_page=1,
+        max_pages=5,
+        page_size=2,
+        output="json",
+        fields=["word", "wrod"],
+    )
+    assert typo["missing_fields"] == ["wrod"]
     with pytest.raises(ValueError):
         reports.validate_fields(["bad field!"])
 

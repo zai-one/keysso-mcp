@@ -4,7 +4,8 @@ Keys.so = market data on any domain or phrase (Yandex/Google regional bases). Re
 page spends plan requests.
 
 1. **Budget** — `keysso_limits` before multi-page pulls; default `max_pages=1`, `page_size` 25–100,
-   `fields=[...]` to keep only needed columns.
+   `fields=[...]` to keep only needed columns (trims the response after fetch: saves tokens, not
+   quota).
 2. **Domain** — `keys_so_query("/report/simple/domain_dashboard", {domain, base})` for the overview
    (vis, it1/it3/it10/it50, keys, concs, pages, ads), then `keysso_domain_report(report=...)`.
 3. **Competitors / gap** — `keysso_domain_report(report="competitors")`, then

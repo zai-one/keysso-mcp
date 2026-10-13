@@ -8,7 +8,8 @@ metadata:
 ---
 # Keys.so competitor research
 
-Every report page spends plan requests: keep `max_pages=1` and use `fields`.
+Every report page spends plan requests: keep `max_pages=1`. `fields` trims columns after the fetch
+(saves tokens, not quota).
 Field meanings: [references/metrics-glossary.md](references/metrics-glossary.md).
 
 ## Steps
