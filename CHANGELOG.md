@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- License: LicenseRef-ZAI-ONE 2.0 (source-available). Free install and use for yourself and your organisation, including commercial work; issues and pull requests welcome; copying code into other projects, redistribution, embedding and competing hosted services need written permission. Earlier releases keep their LicenseRef-ZAI-ONE 1.0 terms (see NOTICE). README first screen: one-line scope, why this MCP, maintenance and update check.
+
 - Agent layer: router `instructions` (≤1200 chars: when Keys.so vs Topvisor/Arsenkin, quota rules), compact template descriptions and titles.
 - Toolsets `meta`, `reports`, `ai_tracker` (`KEYSSO_TOOLSETS`, `KEYSSO_TOOLS`, `KEYSSO_DISABLED_TOOLS`, `KEYSSO_READ_ONLY`); `keysso://toolsets`.
 - Resources `keysso://playbook`, `keysso://guide/{metrics-glossary,ai-tracker,errors}`; prompts `competitor_research`, `content_gap`, `phrase_report`.

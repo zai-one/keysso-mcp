@@ -4,6 +4,8 @@
 
 **Turn competitor data into your next SEO investigation.**
 
+> Read-only MCP server for Keys.so: competitor domains, organic and paid keywords, pages, ad archives, backlinks and the AI-answer (GEO) tracker.
+
 Ask which keywords a competing domain ranks for, inspect its ads or explore its backlink sources. Keys.so MCP brings supported Keys.so reports into your assistant, so you can ask follow-up questions against the same source data instead of preparing a new export for each question.
 
 [Quick start](#quick-start) · [Connect your assistant](#connect-your-assistant) · [Issues](https://github.com/zai-one/keysso-mcp/issues)
@@ -21,6 +23,20 @@ Try asking your assistant:
 | Investigate links | Backlinks, referring domains, anchors and linked-page reports. |
 | Look back at ads | Monthly Yandex ad archives for a domain, an ad or a phrase (`month=YYYY-MM`), plus phrase dashboards and similar phrases. |
 | Track AI answers (GEO) | `keysso_ai_tracker` reads your AI tracker projects: mentions, citation, brand vs competitor visibility, sources and prompt answers. Nothing is created, started or deleted. |
+
+## Why this MCP
+
+- Read-only by design: nothing is created, started or deleted in your Keys.so account.
+- A small tool surface routes to the documented report catalog (`keysso://reports`), with limits and field filtering to keep responses short.
+- Toolsets (meta, reports, ai_tracker), router instructions that say when to use Keys.so vs Topvisor or Arsenkin, skills and prompts.
+- The other Keys.so MCP on GitHub ([perfilev/keys-so-mcp](https://github.com/perfilev/keys-so-mcp), 21 tools) has no tests, CI or update check.
+
+## Maintained and up to date
+
+- Actively maintained by ZAI.ONE: current version 0.4.0; release notes in [CHANGELOG.md](CHANGELOG.md) and [Releases](https://github.com/zai-one/keysso-mcp/releases).
+- Built-in update check: ask the assistant to run `keysso_check_update` (public GitHub API, no credentials, cached; nothing is installed automatically; `KEYSSO_DISABLE_UPDATE_CHECK=1` turns it off).
+- Follows current MCP practice: tool annotations (read-only / destructive hints), toolsets and read-only mode, server `instructions`, prompts and resources, structured errors with recovery hints, secrets kept out of tool output, a token budget for tool descriptions enforced in tests.
+- CI runs the test suite on Linux and Windows for every pull request.
 
 ## Quick start
 
@@ -181,9 +197,9 @@ Tests use synthetic fixtures. A passing test run does not establish live provide
 
 [ZAI.ONE](https://zai.one) is a digital agency working on websites, SEO, advertising and analytics. We also build tools that connect AI assistants to everyday work. [Talk to us on Telegram](https://t.me/zai_one) about setup, automation or an integration for your team.
 
-## Use and feedback
+## License, use and contributing
 
-You may install and use this project for your own accounts under [LicenseRef-ZAI-ONE](LICENSE).
-This is not an open-source license. Third-party notices remain in [NOTICE](NOTICE).
-If it helps, give the repository a ⭐. Missing something or found a bug? [Open an issue](https://github.com/zai-one/keysso-mcp/issues/new/choose).
-I'm working on this project; accepted improvements are implemented here. Support is not guaranteed.
+- **Use:** you may install and use this MCP server freely for yourself and your organisation, including commercial work. If it helps, please consider giving the repository a ⭐ — appreciated, never required.
+- **Contribute:** [issues](https://github.com/zai-one/keysso-mcp/issues/new/choose) and pull requests are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md). Never post tokens, cookies, sessions or account data.
+- **Not allowed without written permission from ZAI.ONE:** copying code into other projects, forking for redistribution, embedding the server in other products or offering it as a competing service.
+- License: [LicenseRef-ZAI-ONE 2.0](LICENSE) (source-available, not open source). Third-party notices and license history: [NOTICE](NOTICE).
