@@ -83,6 +83,7 @@ ALLOWED_PARAMS = frozenset(
         "url",
         "page_url",
         "excl",
+        "filter",
         "full",
         "incl",
         "keyword",
@@ -273,6 +274,12 @@ class KeysSoAdapter:
             except ValueError as exc:
                 raise ValueError("month must use YYYY-MM") from exc
             validated["month"] = month
+        if "filter" in validated:
+            # apidoc defaultFilter: a query string such as "wordLIKEкупить|ws>100"
+            text = _text(validated["filter"], "filter").strip()
+            if not 1 <= len(text) <= 4096 or re.search(r"[\x00-\x09\x0b-\x1f\x7f]", text):
+                raise ValueError("filter must contain 1-4096 printable characters")
+            validated["filter"] = text
         for field in ("url", "page_url", "channel", "groupingBy"):
             if field in validated:
                 text = validated[field].strip()

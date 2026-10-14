@@ -22,6 +22,7 @@ PARAMETERS = {
     "Context keyword reports reject header, txt and url; the keyword ads archive sorts by keyscnt or serp",
     "keyword": "Search phrase, 1-512 characters (keyword_dashboard, similarkeys, keyword ads archive)",
     "month": "Monthly ad archive month YYYY-MM; omitted means the current month (Yandex bases only)",
+    "filter": "Provider filter expression (apidoc: Фильтрация данных), e.g. wordLIKEкупить, up to 4096 chars",
     "full": "Boolean; context/ads/archive adds keywords for each ad",
     "url": "Page URL filter for organic/keywords (with includeSubLevels)",
     "page_url": "Page URL, required by organic/keywords/bypage and organic/concurent_pages",

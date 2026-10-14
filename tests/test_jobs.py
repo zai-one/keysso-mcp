@@ -36,6 +36,12 @@ class Recorder:
         return Http(store, execution_id, actor, delegated)
 
 
+def approve(tmp_path, ticket):
+    from zai_keysso.approvals import ApprovalStore
+
+    ApprovalStore(tmp_path / "keysso-approvals.json").accept(ticket["approval_id"], ticket["digest"])
+
+
 def server(tmp_path, key_pair, monkeypatch, source=None):
     monkeypatch.setenv("KEYSSO_TOOLSETS", "all")
     config = configuration(tmp_path, key_pair, auth_mode="operator")
@@ -101,11 +107,15 @@ async def test_start_needs_confirm_and_spends_nothing_without_it(tmp_path, key_p
             await client.call_tool("keysso_clustering", {"action": "create", "phrases": ["a", "b"]})
         ).data
         assert preview["needs_confirmation"] is True and preview["phrases"] == 2 and source.calls == []
+        args = {"action": "create", "phrases": ["a"], "confirm": True}
+        ticket = (await client.call_tool("keysso_clustering", args)).data
+        assert ticket["needs_operator_approval"] is True and source.calls == []
+        approve(tmp_path, ticket)
         done = (
-            await client.call_tool(
-                "keysso_clustering", {"action": "create", "phrases": ["a"], "confirm": True}
-            )
+            await client.call_tool("keysso_clustering", {**args, "approval_id": ticket["approval_id"]})
         ).data
+        with pytest.raises(Exception, match="not accepted"):  # single use
+            await client.call_tool("keysso_clustering", {**args, "approval_id": ticket["approval_id"]})
     assert done["payload"]["uid"] == "msk:1:abc"
     assert source.calls[0][0] == "POST" and source.calls[0][1].endswith("/clustering")
 
@@ -146,3 +156,48 @@ def test_extended_keywords_similarity_config_and_top_number():
         keyword_job_request("keywords_by_list", "start", phrases=["a"], similarity=40)
     with pytest.raises(ValueError):
         clustering_request("build", uid="u1", top_number=30)
+
+
+async def test_api_reads_run_and_writes_need_operator_approval(tmp_path, key_pair, monkeypatch):
+    source = Recorder({"status": "ok"})
+    async with Client(server(tmp_path, key_pair, monkeypatch, source)) as client:
+        await client.call_tool("keysso_api", {"method": "GET", "path": "/serp/12/status"})
+        assert source.calls[-1][0] == "GET" and source.calls[-1][1].endswith("/serp/12/status")
+        args = {"method": "PATCH", "path": "/monitoring/7", "body": {"name": "new"}}
+        ticket = (await client.call_tool("keysso_api", args)).data
+        assert ticket["needs_operator_approval"] and len(source.calls) == 1
+        with pytest.raises(Exception, match="not accepted"):
+            await client.call_tool("keysso_api", {**args, "approval_id": ticket["approval_id"]})
+        approve(tmp_path, ticket)
+        with pytest.raises(Exception, match="exact request"):
+            await client.call_tool(
+                "keysso_api", {**args, "body": {"name": "other"}, "approval_id": ticket["approval_id"]}
+            )
+        # a mismatched attempt does not burn the approval
+        await client.call_tool("keysso_api", {**args, "approval_id": ticket["approval_id"]})
+        assert source.calls[-1][:2] == ("PATCH", source.calls[-1][1]) and source.calls[-1][3] == {
+            "name": "new"
+        }
+        with pytest.raises(Exception, match="allowlist"):
+            await client.call_tool("keysso_api", {"method": "DELETE", "path": "/limits/all"})
+
+
+def test_api_allowlist_matches_apidoc_paths():
+    from zai_keysso.api_calls import validate_call
+
+    assert validate_call("post", "tools/check-top", {"base": "msk"}, {"list": ["a"]})[1] == "/tools/check-top"
+    assert validate_call("DELETE", "/clustering/msk:1:abc", None, None)[0] == "DELETE"
+    for bad in (("GET", "/serp/../limits"), ("PUT", "/monitoring/1"), ("POST", "/monitoring/x/start")):
+        with pytest.raises(ValueError):
+            validate_call(*bad, None, None)
+    with pytest.raises(ValueError, match="GET takes no body"):
+        validate_call("GET", "/serp", None, {"a": 1})
+
+
+def test_report_filter_parameter_is_passed_through():
+    path, params = KeysSoAdapter.validate(
+        "/report/simple/organic/keywords", {"domain": "a.ru", "filter": "wsk>10"}
+    )
+    assert params["filter"] == "wsk>10"
+    with pytest.raises(ValueError):
+        KeysSoAdapter.validate("/report/simple/organic/keywords", {"domain": "a.ru", "filter": 5})

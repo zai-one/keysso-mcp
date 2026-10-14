@@ -2,6 +2,10 @@
 
 ## Unreleased — API coverage round, semantics -> clusters -> positions, router eval
 
+- Operator approvals (`keysso-approval` CLI): every limit-spending job (`confirm=true`) and every non-GET `keysso_api` call needs an operator-accepted, single-use, request-bound `approval_id`.
+- `keysso_api` (opt-in toolset `api`): documented `tools/*`, `wordstat/*`, `serp/*`, clustering import/list, update-frequency, node keywords, monitoring PATCH/DELETE/link-words.
+- Report `filter` parameter (apidoc defaultFilter).
+
 - Review fixes: `concurents_by_keywords` result uses documented `view=organic|context` and sends `base`; `extended_keywords` start takes `similarity` (apidoc `config`); invalid `top`/`top_number` are rejected instead of silently replaced; `organic/keywords/bypage` and `organic/concurent_pages` require `page_url`.
 - `keys_so_query` allowlist covers the rest of the read API (apidoc.keys.so, 2026-10): competitor pages, keywords by page and competitor pages (`page_url`), organic keywords URL filter (`url`, `includeSubLevels`), lost pages, organic AI answers, outlinks / outlink domains, links by IP and subnet, top-domain visibility, Direct ads by phrase (`kid`), RSYA, subdomains (`id`), robots.txt history (`date`), Zen dashboard/channels/publications, projects and project competitors, saved group reports (`/report/group/list`, `/report/group/<section>/<rid>`).
 - New opt-in toolsets (off by default, so the default tool list and token budget stay flat): `jobs` — `keysso_keyword_job` (keywords_by_list, extended_keywords, concurents_by_keywords: start -> status -> result) and `keysso_clustering` (create -> build -> status -> folders -> keywords); `monitoring` — `keysso_monitoring` (projects, entity, dates, report, compare, chart, limits; create from a clustering uid or phrases; start a refresh). Every start returns a free preview until `confirm=true`; `KEYSSO_READ_ONLY=1` removes them.

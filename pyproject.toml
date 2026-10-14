@@ -21,6 +21,7 @@ dev = ["pytest==9.1.1", "pytest-asyncio==1.4.0", "ruff==0.15.21"]
 [project.scripts]
 keysso-mcp-setup = "zai_keysso.setup:main"
 keysso-mcp = "zai_keysso.server:main"
+keysso-approval = "zai_keysso.approvals:cli"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/zai_keysso"]

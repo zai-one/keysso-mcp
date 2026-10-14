@@ -156,7 +156,11 @@ and open the other files on demand. Clients without skills get the same flows as
 
 Default: `meta`, `reports`, `ai_tracker`. Opt-in (heavy, spend plan limits, need `confirm=true`):
 `jobs` (`keysso_keyword_job`: mass phrase check, semantic expansion, competitor share; `keysso_clustering`)
-and `monitoring` (`keysso_monitoring`: position projects, reports, compare, create from clusters, refresh).
+and `monitoring` (`keysso_monitoring`: position projects, reports, compare, create from clusters, refresh),
+and `api` (`keysso_api`: documented `tools/*`, `wordstat/*`, `serp/*`, clustering import/update-frequency/node keywords,
+monitoring PATCH/DELETE/link-words). Every limit-spending or writing call (`confirm=true` jobs and non-GET `keysso_api`)
+returns an `approval_id`; the operator accepts it outside MCP with `keysso-approval --approval-id ID --digest D --accept`,
+then the agent repeats the same call with `approval_id` (single use, 30 min).
 `KEYSSO_TOOLSETS=default,jobs,monitoring`, `all`, or a comma list (see `keysso://toolsets`, `keysso://guide/tool-map`); `KEYSSO_TOOLS=a,b` adds single tools,
 `KEYSSO_DISABLED_TOOLS=a,b` removes them, `KEYSSO_READ_ONLY=1` removes every write/paid tool.
 

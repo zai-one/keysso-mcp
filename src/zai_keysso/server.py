@@ -21,6 +21,8 @@ from zai_keysso.agent_layer import apply as apply_agent_layer
 from zai_keysso.agent_layer import router_instructions
 from zai_keysso.agent_profile import PROFILE
 from zai_keysso.ai_tracker import ai_tracker_request
+from zai_keysso.api_calls import needs_approval, validate_call
+from zai_keysso.approvals import ApprovalStore
 from zai_keysso.catalog import report_catalog
 from zai_keysso.coalescing import AsyncSingleFlight
 from zai_keysso.config import ServiceConfig
@@ -136,6 +138,18 @@ class AdmittedHttpClient(JsonHttpClient):
         self.store.admit(self.execution_id, self.actor, self.admissions)
 
 
+def _approval_error(code: str, message: str) -> ToolError:
+    envelope = {"provider": "keys_so", "code": code, "message": message, "retryable": False}
+    return ToolError(json.dumps(envelope, sort_keys=True, separators=(",", ":"), ensure_ascii=False))
+
+
+def _consume(approvals: Any, approval_id: str, tool_name: str, request: dict[str, Any]) -> None:
+    try:
+        approvals.consume(approval_id, tool_name, request)
+    except PermissionError as exc:
+        raise _approval_error("approval_invalid", str(exc)) from None
+
+
 def _safe_error(exc: Exception) -> ToolError:
     # No provider body, secret or exception message crosses this boundary.
     envelope: dict[str, Any] = {"provider": "keys_so", "code": "operation_failed", "retryable": False}
@@ -192,6 +206,7 @@ def create_server(
             audience=config.audience,
             required_scopes=[SCOPE],
         )
+    approvals = ApprovalStore(config.state_path.with_name("keysso-approvals.json"))
     store = PolicyStore(
         config.state_path,
         config.account_id,
@@ -473,7 +488,18 @@ def create_server(
         build: Callable[[], tuple[str, str, dict[str, Any], dict[str, Any] | None]],
         spends: bool,
         confirm: bool,
+        approval_id: str | None = None,
     ) -> dict[str, Any]:
+        if spends and confirm is True:
+            method, path, params, payload = build()
+            request = {"method": method, "path": path, "params": params, "payload": payload}
+            if not approval_id:
+
+                async def prepare() -> dict[str, Any]:
+                    return _approval_needed(tool_name, request, f"{method} {path}")
+
+                return await execute_local(tool_name, arguments, prepare)
+            _consume(approvals, approval_id, tool_name, request)
         if spends and confirm is not True:
 
             async def preview() -> dict[str, Any]:
@@ -509,6 +535,7 @@ def create_server(
         sort: str | None = None,
         similarity: int | None = None,
         confirm: bool = False,
+        approval_id: str | None = None,
     ) -> dict[str, Any]:
         """Run a Keys.so keyword tool job: start -> status -> result (paged).
 
@@ -547,7 +574,7 @@ def create_server(
                 similarity=similarity,
             )
 
-        return await run_job("keysso_keyword_job", arguments, build, action == "start", confirm)
+        return await run_job("keysso_keyword_job", arguments, build, action == "start", confirm, approval_id)
 
     @server.tool(annotations=JOB)
     async def keysso_clustering(
@@ -563,6 +590,7 @@ def create_server(
         per_page: int | None = None,
         sort: str | None = None,
         confirm: bool = False,
+        approval_id: str | None = None,
     ) -> dict[str, Any]:
         """Cluster phrases by SERP overlap in Keys.so: create -> build -> status -> folders -> keywords.
 
@@ -599,7 +627,9 @@ def create_server(
                 sort=sort,
             )
 
-        return await run_job("keysso_clustering", arguments, build, action in {"create", "build"}, confirm)
+        return await run_job(
+            "keysso_clustering", arguments, build, action in {"create", "build"}, confirm, approval_id
+        )
 
     @server.tool(annotations=JOB)
     async def keysso_monitoring(
@@ -621,6 +651,7 @@ def create_server(
         per_page: int | None = None,
         sort: str | None = None,
         confirm: bool = False,
+        approval_id: str | None = None,
     ) -> dict[str, Any]:
         """Keys.so position monitoring: read projects/report/compare/chart/dates/limits; create/start.
 
@@ -673,7 +704,54 @@ def create_server(
                 sort=sort,
             )
 
-        return await run_job("keysso_monitoring", arguments, build, action in MONITORING_WRITES, confirm)
+        return await run_job(
+            "keysso_monitoring", arguments, build, action in MONITORING_WRITES, confirm, approval_id
+        )
+
+    def _approval_needed(tool_name: str, request: dict[str, Any], summary: str) -> dict[str, Any]:
+        ticket = approvals.prepare(tool_name, request, summary)
+        return {
+            "needs_operator_approval": True,
+            **ticket,
+            "summary": summary,
+            "operator_command": f"keysso-approval --approval-id {ticket['approval_id']} "
+            f"--digest {ticket['digest']} --accept",
+            "hint": "Show the request to the user; after the operator accepts, repeat the same call "
+            "with approval_id. The agent never runs the operator command.",
+        }
+
+    @server.tool(annotations=JOB)
+    async def keysso_api(
+        method: Literal["GET", "POST", "PATCH", "DELETE"],
+        path: str,
+        params: dict[str, Any] | None = None,
+        body: dict[str, Any] | list[Any] | None = None,
+        approval_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Call one documented Keys.so endpoint (tools/*, wordstat/*, serp/*, clustering, monitoring).
+
+        GET runs at once. POST/PATCH/DELETE spend limits or change data: the first call returns
+        approval_id + digest for the operator; repeat with approval_id after acceptance.
+        """
+        arguments = {"method": method, "path": path, "params": params, "body": body}
+        try:
+            verb, clean_path, clean_params, payload = validate_call(method, path, params, body)
+        except ValueError as exc:
+            raise _approval_error("validation_failed", str(exc)) from None
+        request = {"method": verb, "path": clean_path, "params": clean_params, "payload": payload}
+        if needs_approval(verb):
+            if not approval_id:
+
+                async def prepare() -> dict[str, Any]:
+                    return _approval_needed("keysso_api", request, f"{verb} {clean_path}")
+
+                return await execute_local("keysso_api", arguments, prepare)
+            _consume(approvals, approval_id, "keysso_api", request)
+
+        async def call(adapter: KeysSoAdapter) -> dict[str, Any]:
+            return {"payload": await adapter.job(verb, clean_path, clean_params, payload)}
+
+        return await execute("keysso_api", arguments, lambda: None, call)
 
     @server.tool(annotations=READ_ONLY)
     async def keysso_limits() -> dict[str, Any]:

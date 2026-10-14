@@ -49,6 +49,8 @@ DESCRIPTIONS = {
     "keysso_monitoring": "Read or start Keys.so position monitoring. Reads: projects, report, "
     "compare, chart, dates, limits; create from clusters, start refresh. "
     "Cost: create/start need confirm=true.",
+    "keysso_api": "Documented tools/*, wordstat, serp, clustering import/frequency, monitoring "
+    "PATCH/DELETE. Cost: non-GET needs operator approval_id.",
     "keysso_check_update": "Check for a newer server release; never installs. Cost: free, 24h cache.",
 }
 
@@ -58,8 +60,9 @@ TOOLSETS = {
     "ai_tracker": ("keysso_ai_tracker",),
     "jobs": ("keysso_keyword_job", "keysso_clustering"),
     "monitoring": ("keysso_monitoring",),
+    "api": ("keysso_api",),
 }
-OPTIN = ("jobs", "monitoring")
+OPTIN = ("jobs", "monitoring", "api")
 
 PROMPTS = (
     Prompt(
