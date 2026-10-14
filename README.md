@@ -26,7 +26,7 @@ Try asking your assistant:
 
 ## Why this MCP
 
-- Optional lazy tool loading: `KEYSSO_TOOL_LOADING=lazy` starts with a small core plus `keysso_enable_toolsets` and adds toolsets on demand (`tools/list_changed`). Startup cost (tools/list + instructions, ≈chars/4): eager ≈1726 tokens, lazy ≈1009 tokens (−42%). Default `eager` is unchanged; if your client ignores `tools/list_changed`, keep `eager` or reconnect after enabling.
+- Optional lazy tool loading: `KEYSSO_TOOL_LOADING=lazy` starts with a small core plus `keysso_enable_toolsets` and adds toolsets on demand (`tools/list_changed`). Startup cost (tools/list + instructions, ≈chars/4): eager ≈1726 tokens, lazy ≈1013 tokens (−41%). Default `eager` is unchanged; if your client ignores `tools/list_changed`, keep `eager` or reconnect after enabling. Scope: enablement is per MCP session (FastMCP session visibility), so one client's enabled toolsets never appear for another. The HTTP transport here is stateless (every request is its own session), so enabled toolsets do not persist there: for shared HTTP use `eager` or `KEYSSO_TOOLSETS`.
 - Read-only by default: the default toolsets never create, start or delete anything. Opt-in toolsets (`jobs`, `monitoring`, `api`) can start limit-spending jobs and change monitoring projects, and each such call needs an operator-accepted `approval_id`.
 - A small tool surface routes to the documented report catalog (`keysso://reports`), with limits and field filtering to keep responses short.
 - Toolsets (default: meta, reports, ai_tracker; opt-in: jobs, monitoring, api), router instructions that say when to use Keys.so vs Topvisor or Arsenkin, skills and prompts.
