@@ -96,13 +96,22 @@ def _scalar(value: Any, field: str) -> Any:
     raise ValueError(f"{field} must be a number, boolean or printable string")
 
 
+def _not_allowed(method: str) -> str:
+    # There is no separate guide page: name the allowed templates so the agent can self-correct.
+    allowed = ", ".join(ENDPOINTS.get(method, ())) or "methods are GET, POST, PATCH, DELETE"
+    return f"Keys.so endpoint is not in the documented allowlist; allowed {method}: {allowed}"
+
+
 def validate_call(
     method: str, path: str, params: dict[str, Any] | None, body: Any
 ) -> tuple[str, str, dict[str, Any], Any]:
     method = str(method).upper().strip()
     path = "/" + str(path).strip().lstrip("/")
     if method not in _COMPILED or not any(p.match(path) for p in _COMPILED[method]):
-        raise ValueError("Keys.so endpoint is not in the documented allowlist (see keysso://guide/api)")
+        raise ValueError(_not_allowed(method))
+    if any(segment in {".", ".."} for segment in path.split("/")):
+        # HTTP clients collapse dot segments, so /tools/extended_keywords/.. would reach /tools.
+        raise ValueError(_not_allowed(method))
     clean: dict[str, Any] = {}
     for key, value in (params or {}).items():
         if not isinstance(key, str) or not _KEY.fullmatch(key):

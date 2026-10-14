@@ -491,7 +491,11 @@ def create_server(
         approval_id: str | None = None,
     ) -> dict[str, Any]:
         if spends and confirm is True:
-            method, path, params, payload = build()
+            try:
+                method, path, params, payload = build()
+            except (ValueError, TypeError) as exc:
+                # Same safe envelope as the other paths, not a masked internal error.
+                raise _approval_error("validation_failed", str(exc)) from None
             request = {"method": method, "path": path, "params": params, "payload": payload}
             if not approval_id:
 
@@ -714,8 +718,7 @@ def create_server(
             "needs_operator_approval": True,
             **ticket,
             "summary": summary,
-            "operator_command": f"keysso-approval --approval-id {ticket['approval_id']} "
-            f"--digest {ticket['digest']} --accept",
+            "operator_command": approvals.operator_command("keysso-approval", ticket),
             "hint": "Show the request to the user; after the operator accepts, repeat the same call "
             "with approval_id. The agent never runs the operator command.",
         }

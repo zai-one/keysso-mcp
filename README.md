@@ -174,7 +174,9 @@ Default: `meta`, `reports`, `ai_tracker`. Opt-in (heavy, spend plan limits, need
 and `monitoring` (`keysso_monitoring`: position projects, reports, compare, create from clusters, refresh),
 and `api` (`keysso_api`: documented `tools/*`, `wordstat/*`, `serp/*`, clustering import/update-frequency/node keywords,
 monitoring PATCH/DELETE/link-words). Every limit-spending or writing call (`confirm=true` jobs and non-GET `keysso_api`)
-returns an `approval_id`; the operator accepts it outside MCP with `keysso-approval --approval-id ID --digest D --accept`,
+returns an `approval_id` and an `operator_command`; the operator reviews the exact request with
+`keysso-approval --path FILE --list` and accepts it outside MCP with the returned
+`keysso-approval --path FILE --approval-id ID --digest D --accept`,
 then the agent repeats the same call with `approval_id` (single use, 30 min).
 `KEYSSO_TOOLSETS=default,jobs,monitoring`, `all`, or a comma list (see `keysso://toolsets`, `keysso://guide/tool-map`); `KEYSSO_TOOLS=a,b` adds single tools,
 `KEYSSO_DISABLED_TOOLS=a,b` removes them, `KEYSSO_READ_ONLY=1` removes every write/paid tool.

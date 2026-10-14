@@ -201,3 +201,80 @@ def test_report_filter_parameter_is_passed_through():
     assert params["filter"] == "wsk>10"
     with pytest.raises(ValueError):
         KeysSoAdapter.validate("/report/simple/organic/keywords", {"domain": "a.ru", "filter": 5})
+
+
+def test_concurrent_accept_cannot_resurrect_a_consumed_approval(tmp_path, monkeypatch):
+    """Server and operator CLI share one file: a stale operator write must not re-arm a spent approval."""
+    import threading
+    import time
+
+    from zai_keysso.approvals import ApprovalStore
+
+    store = ApprovalStore(tmp_path / "keysso-approvals.json")
+    spent = {"method": "POST", "path": "/clustering", "params": {}, "payload": {"list": ["a"]}}
+    x = store.prepare("keysso_clustering", spent, "POST /clustering")
+    y = store.prepare("keysso_api", {"method": "DELETE", "path": "/serp/1"}, "DELETE /serp/1")
+    store.accept(x["approval_id"], x["digest"])
+    loaded, original = threading.Event(), ApprovalStore._load
+
+    def slow_load(self):
+        data = original(self)
+        if threading.current_thread().name == "operator":
+            loaded.set()
+            time.sleep(0.3)  # the operator CLI read is in flight while the server consumes
+        return data
+
+    monkeypatch.setattr(ApprovalStore, "_load", slow_load)
+    operator = threading.Thread(target=store.accept, args=(y["approval_id"], y["digest"]), name="operator")
+    operator.start()
+    assert loaded.wait(5)
+    store.consume(x["approval_id"], "keysso_clustering", spent)
+    operator.join()
+    with pytest.raises(PermissionError):  # still single use
+        store.consume(x["approval_id"], "keysso_clustering", spent)
+    assert [item["approval_id"] for item in store.pending()] == []  # y was accepted, not lost
+
+
+async def test_operator_command_works_from_any_directory(tmp_path, key_pair, monkeypatch, capsys):
+    import shlex
+    from pathlib import Path
+
+    from zai_keysso import approvals
+
+    source = Recorder({"uid": "msk:1:abc"})
+    async with Client(server(tmp_path, key_pair, monkeypatch, source)) as client:
+        args = {"action": "create", "phrases": ["купить диван"], "confirm": True}
+        ticket = (await client.call_tool("keysso_clustering", args)).data
+        command = shlex.split(ticket["operator_command"])
+        assert command[0] == "keysso-approval"
+        elsewhere = tmp_path / "elsewhere"
+        elsewhere.mkdir()
+        monkeypatch.chdir(elsewhere)  # operator shell: other cwd, no KEYSSO_STATE_PATH
+        default = Path("state/keysso-approvals.json")
+        path = command[command.index("--path") + 1]
+        assert approvals.main(["--path", path, "--list"], default_path=default) == 0
+        listed = capsys.readouterr().out
+        assert "купить диван" in listed and ticket["digest"] in listed  # operator sees the payload
+        assert approvals.main(command[1:], default_path=default) == 0
+        await client.call_tool("keysso_clustering", {**args, "approval_id": ticket["approval_id"]})
+    assert source.calls[-1][0] == "POST" and source.calls[-1][3]["list"] == ["купить диван"]
+    assert not (elsewhere / "state").exists()
+
+
+async def test_invalid_confirmed_start_returns_validation_envelope(tmp_path, key_pair, monkeypatch):
+    source = Recorder({})
+    async with Client(server(tmp_path, key_pair, monkeypatch, source)) as client:
+        with pytest.raises(Exception, match="validation_failed"):
+            await client.call_tool("keysso_clustering", {"action": "create", "phrases": [], "confirm": True})
+    assert source.calls == []
+
+
+def test_api_rejects_dot_segments_that_http_clients_collapse():
+    from zai_keysso.api_calls import validate_call
+
+    for path in ("/tools/extended_keywords/..", "/clustering/node/.", "/clustering/../update-frequency"):
+        with pytest.raises(ValueError, match="allowlist"):
+            validate_call("GET", path, None, None)
+    with pytest.raises(ValueError, match="allowlist"):
+        validate_call("DELETE", "/clustering/..", None, None)
+    assert validate_call("GET", "/clustering/node/msk:1.2_a", None, None)[1] == "/clustering/node/msk:1.2_a"
