@@ -81,6 +81,7 @@ ALLOWED_PARAMS = frozenset(
         "kid",
         "projectId",
         "url",
+        "page_url",
         "excl",
         "full",
         "incl",
@@ -110,6 +111,9 @@ MAX_KEYWORD_CHARS = 512
 ALLOWED_VIEWS = frozenset({"organic", "context", "backlinks"})
 _DOMAIN = re.compile(r"(?=.{1,253}\Z)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9][a-z0-9-]{1,62}\Z")
 _RSYA_PATH = re.compile(r"/report/ads/rsya/domains/([^/]+)\Z")
+_PAGE_URL_PATHS = frozenset(
+    {"/report/simple/organic/keywords/bypage", "/report/simple/organic/concurent_pages"}
+)
 # Saved group reports (read-only): /report/group/<section>/<rid>; creation is not exposed.
 _GROUP_PATH = re.compile(
     r"/report/group/(?:state|domains|organic/(?:keywords|concurents|sitepages)"
@@ -194,6 +198,9 @@ class KeysSoAdapter:
         group = _GROUP_PATH.fullmatch(normalized_path)
         if normalized_path not in ALLOWED_PATHS and rsya is None and group is None:
             raise ValueError("Keys.so report path is not allowed")
+        if normalized_path in _PAGE_URL_PATHS and "page_url" not in params:
+            # apidoc: these reports require page_url (a plain url is ignored by Keys.so)
+            raise ValueError(f"{normalized_path} requires page_url")
         if rsya is not None:
             _validated_domain(rsya.group(1), "RSYA path")
 
@@ -211,6 +218,7 @@ class KeysSoAdapter:
             "month",
             "sort",
             "url",
+            "page_url",
             "channel",
             "groupingBy",
         ):
@@ -265,7 +273,7 @@ class KeysSoAdapter:
             except ValueError as exc:
                 raise ValueError("month must use YYYY-MM") from exc
             validated["month"] = month
-        for field in ("url", "channel", "groupingBy"):
+        for field in ("url", "page_url", "channel", "groupingBy"):
             if field in validated:
                 text = validated[field].strip()
                 if not 1 <= len(text) <= 2048 or re.search(r"[\x00-\x1f\x7f]", text):

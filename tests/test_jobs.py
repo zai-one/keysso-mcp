@@ -80,8 +80,14 @@ def test_clustering_and_monitoring_requests():
 
 def test_new_report_paths_are_allowlisted():
     KeysSoAdapter.validate(
-        "/report/simple/organic/keywords/bypage", {"url": "https://example.com/a", "base": "msk"}
+        "/report/simple/organic/keywords/bypage", {"page_url": "https://example.com/a", "base": "msk"}
     )
+    # apidoc names the parameter page_url; a bare url would be silently ignored upstream.
+    with pytest.raises(ValueError):
+        KeysSoAdapter.validate(
+            "/report/simple/organic/concurent_pages",
+            {"url": "https://example.com/a", "domain": "example.com"},
+        )
     KeysSoAdapter.validate("/report/group/organic/keywords/abc123", {"page": 1})
     KeysSoAdapter.validate("/robots/data", {"domain": "example.com", "date": "2026-10-01"})
     with pytest.raises(ValueError):
@@ -113,3 +119,30 @@ async def test_reads_do_not_need_confirm(tmp_path, key_pair, monkeypatch):
         )
     assert [call[0] for call in source.calls] == ["GET", "GET"]
     assert source.calls[1][1].endswith("/tools/extended_keywords/state/x1")
+
+
+def test_concurents_result_view_and_base_match_apidoc():
+    from zai_keysso.jobs import keyword_job_request
+
+    _m, path, params, _p = keyword_job_request(
+        "concurents_by_keywords", "result", uid="abc", base="spb", view="context"
+    )
+    assert path == "/tools/concurents_by_keywords/abc" and params == {"base": "spb", "view": "context"}
+    for bad in ("domains", "urls"):
+        with pytest.raises(ValueError):
+            keyword_job_request("concurents_by_keywords", "result", uid="abc", view=bad)
+    with pytest.raises(ValueError):
+        keyword_job_request("concurents_by_keywords", "start", phrases=["a"], top=20)
+
+
+def test_extended_keywords_similarity_config_and_top_number():
+    from zai_keysso.jobs import clustering_request, keyword_job_request
+
+    _m, _path, _q, payload = keyword_job_request("extended_keywords", "start", phrases=["a"], similarity=40)
+    assert payload["config"] == {"similarity": 40, "deleteDuplicate": True, "additions": False}
+    with pytest.raises(ValueError):
+        keyword_job_request("extended_keywords", "start", phrases=["a"], similarity=2)
+    with pytest.raises(ValueError):
+        keyword_job_request("keywords_by_list", "start", phrases=["a"], similarity=40)
+    with pytest.raises(ValueError):
+        clustering_request("build", uid="u1", top_number=30)

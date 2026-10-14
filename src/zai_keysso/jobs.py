@@ -99,6 +99,7 @@ def keyword_job_request(
     page: int | None = None,
     per_page: int | None = None,
     sort: str | None = None,
+    similarity: int | None = None,
 ) -> Request:
     if kind not in KEYWORD_JOBS:
         raise ValueError("kind must be one of: " + ", ".join(KEYWORD_JOBS))
@@ -106,7 +107,18 @@ def keyword_job_request(
     if action == "start":
         payload: dict[str, Any] = {"list": phrases_list(phrases), "base": _base(base)}
         if kind == "concurents_by_keywords":
-            payload["top"] = top if top in (10, 50) else 10
+            if top is not None and top not in (10, 50):
+                raise ValueError("top must be 10 or 50")
+            payload["top"] = top or 10
+        if similarity is not None:
+            if kind != "extended_keywords":
+                raise ValueError("similarity applies to extended_keywords only")
+            # apidoc: config {similarity 5..100, deleteDuplicate, additions}
+            payload["config"] = {
+                "similarity": _int(similarity, "similarity", 5, 100),
+                "deleteDuplicate": True,
+                "additions": False,
+            }
         return "POST", start, {}, payload
     if action == "status":
         if state is None:
@@ -115,14 +127,21 @@ def keyword_job_request(
         return "GET", state.format(uid=_uid(uid)), {}, None
     if action == "result":
         params = _paging(page, per_page, sort)
-        if kind == "keywords_by_list":
+        if kind in {"keywords_by_list", "concurents_by_keywords"}:
             params["base"] = _base(base)
-        if kind == "concurents_by_keywords" and view is not None:
-            if view not in {"domains", "urls", "domain", "url"}:
-                raise ValueError("view must be domains or urls")
+        if view is not None:
+            # apidoc GET /tools/concurents_by_keywords/<uid>: view=organic|context (default organic)
+            if kind != "concurents_by_keywords" or view not in {"organic", "context"}:
+                raise ValueError("view applies to concurents_by_keywords: organic or context")
             params["view"] = view
         return "GET", result.format(uid=_uid(uid)), params, None
     raise ValueError("action must be start, status or result")
+
+
+def _top_number(value: object) -> int:
+    if value not in (10, 20, 50) or type(value) is not int:
+        raise ValueError("top_number must be 10, 20 or 50")
+    return value
 
 
 def clustering_request(
@@ -145,7 +164,7 @@ def clustering_request(
         return "POST", "/clustering", {}, {"list": phrases_list(phrases), "base": _base(base)}
     if action == "build":
         payload: dict[str, Any] = {
-            "topNumber": top_number if top_number in (10, 20, 50) else 10,
+            "topNumber": _top_number(top_number),
             "isSerpProject": True,
             "isWsProject": True,
         }

@@ -507,13 +507,15 @@ def create_server(
         page: int | None = None,
         per_page: int | None = None,
         sort: str | None = None,
+        similarity: int | None = None,
         confirm: bool = False,
     ) -> dict[str, Any]:
         """Run a Keys.so keyword tool job: start -> status -> result (paged).
 
         keywords_by_list: frequencies/metrics for your phrase list (mass check); extended_keywords:
         expand phrases into a semantic core; concurents_by_keywords: competitor share for phrases
-        (top 10|50, view=domains|urls). start spends limits and needs confirm=true.
+        (top 10|50; result view=organic|context). extended_keywords start takes similarity 5-100.
+        start spends limits and needs confirm=true.
         """
         arguments = {
             "kind": kind,
@@ -526,6 +528,7 @@ def create_server(
             "page": page,
             "per_page": per_page,
             "sort": sort,
+            "similarity": similarity,
             "confirm": confirm,
         }
 
@@ -541,6 +544,7 @@ def create_server(
                 page=page,
                 per_page=per_page,
                 sort=sort,
+                similarity=similarity,
             )
 
         return await run_job("keysso_keyword_job", arguments, build, action == "start", confirm)

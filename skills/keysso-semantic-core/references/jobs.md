@@ -8,7 +8,7 @@ explicit OK. Without `confirm` the tool returns a free preview (`needs_confirmat
 |---|---|---|
 | Expand seeds | `keysso_keyword_job(kind="extended_keywords", action="start", phrases=[...], base)` | returns `uid` |
 | Mass check | `keysso_keyword_job(kind="keywords_by_list", action="start", phrases=[...])` | frequencies `ws`/`wsk` |
-| Competitor share | `keysso_keyword_job(kind="concurents_by_keywords", action="start", phrases, top=10)` | `view=domains|urls` |
+| Competitor share | `keysso_keyword_job(kind="concurents_by_keywords", action="start", phrases, top=10)` | `view=organic|context` |
 | Poll | `action="status", uid` | wait until done; then `action="result", page, per_page, sort="wsk|desc"` |
 | Cluster | `keysso_clustering(action="create", phrases, base)` -> `action="build", uid, top_number=10` | `strength` %, `min_frequency` |
 | Read clusters | `action="status"` -> `action="folders"` -> `action="keywords", folder_id` | folders = clusters |
