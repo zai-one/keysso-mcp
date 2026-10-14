@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — API coverage round, semantics -> clusters -> positions, router eval
+## 0.6.0 — API coverage round, semantics -> clusters -> positions, router eval
 
 - Upgrade note: `KEYSSO_TOOLSETS=all` now also enables the new opt-in `jobs`, `monitoring` and `api` toolsets (paid and writing calls, each still behind confirm and operator approval). Unset or `default` keeps the 0.5.0 surface; list toolsets explicitly if you relied on `all` meaning the previous set.
 - Optional lazy tool loading (`KEYSSO_TOOL_LOADING=eager|lazy`, default `eager` = unchanged): lazy lists a small core plus `keysso_enable_toolsets` (toolsets with one-line description and token cost); enabling registers the tools at runtime and sends `notifications/tools/list_changed`. Allowlists, read-only mode and approval gates still apply. Setup wizard asks eager vs lazy. Startup tokens (tools/list + instructions, ≈chars/4): eager ≈1726, lazy ≈1013. Scope: enablement is per MCP session (FastMCP session visibility), so one client's enabled toolsets never appear for another. The HTTP transport here is stateless (every request is its own session), so enabled toolsets do not persist there: for shared HTTP use `eager` or `KEYSSO_TOOLSETS`. README lazy section lists verified `tools/list_changed` client support with sources.
