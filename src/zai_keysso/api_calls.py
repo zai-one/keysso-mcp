@@ -1,12 +1,15 @@
 """Allowlisted Keys.so endpoints beyond the typed tools (apidoc.keys.so OpenAPI).
 
-GET calls are reads. Every POST/PATCH/DELETE either spends plan limits (tools/*, wordstat, serp,
-clustering) or changes saved data (monitoring PATCH/DELETE/link-words, deletes), so they run only
-after an operator approval (see zai_keysso.approvals).
+GET calls are reads, except the stateful GETs in STATEFUL_GET (``/serp/<id>/csv`` queues a
+provider-side export job). Every POST/PATCH/DELETE either spends plan limits (tools/*, wordstat,
+serp, clustering) or changes saved data (monitoring PATCH/DELETE/link-words, deletes). Those and
+the stateful GETs run only after an operator approval (see zai_keysso.approvals), with one
+upstream attempt.
 """
 
 from __future__ import annotations
 
+import json
 import re
 from typing import Any
 
@@ -80,8 +83,14 @@ ENDPOINTS: dict[str, tuple[str, ...]] = {
     ),
 }
 _COMPILED = {method: [_p(t) for t in templates] for method, templates in ENDPOINTS.items()}
+# apidoc: "Ставит выгрузку отчёта по проекту в очередь" - a GET that starts a provider job.
+STATEFUL_GET = [_p("/serp/<id>/csv")]
 _KEY = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,40}(\[\])?")
 MAX_BODY_ITEMS = 10_000
+MAX_BODY_NODES = 50_000
+MAX_BODY_DEPTH = 8
+# Bounded before an approval is prepared and stored (the transport limit applies only at dispatch).
+MAX_REQUEST_BYTES = 1024 * 1024
 
 
 def _scalar(value: Any, field: str) -> Any:
@@ -127,13 +136,33 @@ def validate_call(
     if body is not None:
         if not isinstance(body, dict | list):
             raise ValueError("body must be a JSON object or array")
-        items = (
-            body if isinstance(body, list) else next((v for v in body.values() if isinstance(v, list)), [])
-        )
-        if len(items) > MAX_BODY_ITEMS:
-            raise ValueError(f"body lists are limited to {MAX_BODY_ITEMS} items")
+        _check_body(body)
+    try:
+        size = len(json.dumps({"params": clean, "body": body}, ensure_ascii=False).encode("utf-8"))
+    except (TypeError, ValueError) as exc:
+        raise ValueError("request must be JSON serializable") from exc
+    if size > MAX_REQUEST_BYTES:
+        raise ValueError(f"request is limited to {MAX_REQUEST_BYTES} bytes")
     return method, path, clean, body
 
 
-def needs_approval(method: str) -> bool:
-    return method != "GET"
+def _check_body(body: Any) -> None:
+    """Every nested list, not only the first top-level one, plus total nodes and depth."""
+    nodes = 0
+    stack: list[tuple[Any, int]] = [(body, 1)]
+    while stack:
+        value, depth = stack.pop()
+        nodes += 1
+        if nodes > MAX_BODY_NODES or depth > MAX_BODY_DEPTH:
+            raise ValueError(f"body is limited to {MAX_BODY_NODES} values and depth {MAX_BODY_DEPTH}")
+        if isinstance(value, list):
+            if len(value) > MAX_BODY_ITEMS:
+                raise ValueError(f"body lists are limited to {MAX_BODY_ITEMS} items")
+            stack.extend((item, depth + 1) for item in value)
+        elif isinstance(value, dict):
+            stack.extend((item, depth + 1) for item in value.values())
+
+
+def needs_approval(method: str, path: str = "") -> bool:
+    """Non-GET calls and stateful GETs (they start provider jobs) need an operator approval."""
+    return method != "GET" or any(p.match(path) for p in STATEFUL_GET)
