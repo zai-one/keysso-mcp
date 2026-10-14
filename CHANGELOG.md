@@ -2,6 +2,7 @@
 
 ## Unreleased — API coverage round, semantics -> clusters -> positions, router eval
 
+- Optional lazy tool loading (`KEYSSO_TOOL_LOADING=eager|lazy`, default `eager` = unchanged): lazy lists a small core plus `keysso_enable_toolsets` (toolsets with one-line description and token cost); enabling registers the tools at runtime and sends `notifications/tools/list_changed`. Allowlists, read-only mode and approval gates still apply. Setup wizard asks eager vs lazy. Startup tokens (tools/list + instructions, ≈chars/4): eager ≈1726, lazy ≈1009.
 - Operator approvals (`keysso-approval` CLI): every limit-spending job (`confirm=true`) and every non-GET `keysso_api` call needs an operator-accepted, single-use, request-bound `approval_id`.
 - `keysso_api` (opt-in toolset `api`): documented `tools/*`, `wordstat/*`, `serp/*`, clustering import/list, update-frequency, node keywords, monitoring PATCH/DELETE/link-words.
 - Report `filter` parameter (apidoc defaultFilter).

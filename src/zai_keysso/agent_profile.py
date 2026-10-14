@@ -105,5 +105,6 @@ PROFILE = Profile(
     prompts=PROMPTS,
     routes=ROUTES,
     optin=OPTIN,
+    lazy_core=("keysso_domain_report",),
     titles={"keys_so_query": "Keys.so: query report"},
 )
