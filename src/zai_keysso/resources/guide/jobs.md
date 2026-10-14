@@ -4,7 +4,8 @@ Opt-in toolsets: `KEYSSO_TOOLSETS=default,jobs,monitoring` (or `all`). Every sta
 call `keysso_limits`, show phrase count + remaining limit, and pass `confirm=true` only after an
 explicit OK. Without `confirm` the tool returns a free preview (`needs_confirmation`); with
 `confirm=true` it returns `approval_id` + `operator_command` — the operator accepts it outside MCP,
-then repeat the same call with `approval_id` (single use, 30 min).
+then repeat the same call with `approval_id` (single use, 30 min, same principal and account).
+If a call returns `provider_outcome_unknown`, do not repeat it: check projects/status/limits first.
 
 | Step | Tool call | Notes |
 |---|---|---|
@@ -14,11 +15,11 @@ then repeat the same call with `approval_id` (single use, 30 min).
 | Poll | `action="status", uid` | wait until done; then `action="result", page, per_page, sort="wsk|desc"` |
 | Cluster | `keysso_clustering(action="create", phrases, base)` -> `action="build", uid, top_number=10` | `strength` %, `min_frequency` |
 | Read clusters | `action="status"` -> `action="folders"` -> `action="keywords", folder_id` | folders = clusters |
-| Track positions | `keysso_monitoring(action="create", tracking_item=domain, cluster_uid=uid, region_id=213)` | engine 0 Yandex, 1 Google |
+| Track positions | `keysso_monitoring(action="create", tracking_item=domain, cluster_uid=uid, region_id=213)` | engine 0 Yandex desktop, 1 Yandex mobile, 3 Google mobile, 4 Google desktop; tracking_item may be a URL |
 | Refresh / read | `action="limits"` -> `action="start", project_id` -> `action="report"/"compare", date_from, date_to` | |
 | Existing projects | `keysso_monitoring(action="projects")`, `action="dates"`, `action="chart"` | read-only |
 
 Limits: up to 1000 phrases per call, 100 chars per phrase. Region IDs: 213 Москва, 2 СПб (Yandex).
 Monitoring PATCH/DELETE/link-words, wordstat, serp, `tools/*`: `keysso_api` (opt-in toolset `api`),
-same approval rule for every non-GET.
+same approval rule for every non-GET and for GET `serp/<id>/csv` (queues an export).
 Saved group reports (read): `keys_so_query("/report/group/list")`, `/report/group/<section>/<rid>`.

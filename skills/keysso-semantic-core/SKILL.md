@@ -30,7 +30,7 @@ Flow table and limits: [references/jobs.md](references/jobs.md). Errors: [refere
 - Every `confirm=true` call first returns `approval_id` + `operator_command`; show it, wait until the
   operator runs it (never run it yourself), then repeat the same call with `approval_id`.
 - Other documented endpoints (wordstat, serp, tools/*, clustering import, monitoring PATCH/DELETE):
-  `keysso_api` (toolset `api`), same approval rule for every non-GET.
+  `keysso_api` (toolset `api`), same approval rule for every non-GET and GET `serp/<id>/csv`.
 - Never pass `confirm=true` without the user's explicit OK for that start.
 - Jobs are async: report `uid`s so the user can resume; never restart a job just to poll.
 - Partial results stay partial: say which steps did not finish.

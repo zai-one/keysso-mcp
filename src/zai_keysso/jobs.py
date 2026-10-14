@@ -12,6 +12,7 @@ import json
 import re
 from datetime import date
 from typing import Any
+from urllib.parse import urlsplit
 
 MAX_PHRASES = 1000
 MAX_PHRASE_CHARS = 100
@@ -193,6 +194,43 @@ def _day(value: object, field: str) -> str:
 MONITORING_REPORTS = ("projects", "entity", "dates", "report", "compare", "chart", "limits")
 MONITORING_WRITES = ("create", "start")
 _DOMAINISH = re.compile(r"[A-Za-z0-9.-]{1,253}(/[^\s]{0,1024})?\Z")
+_HOST = re.compile(r"[A-Za-z0-9.-]{1,253}\Z")
+# apidoc components/schemas/engine: 0 Yandex desktop, 1 Yandex mobile, 3 Google mobile, 4 Google desktop.
+ENGINES = {0: "Yandex desktop", 1: "Yandex mobile", 3: "Google mobile", 4: "Google desktop"}
+
+
+def _engine(value: object) -> int:
+    if type(value) is not int or value not in ENGINES:
+        raise ValueError(
+            "engine must be one of: " + ", ".join(f"{key} {name}" for key, name in ENGINES.items())
+        )
+    return value
+
+
+def _tracking_item(value: object) -> str:
+    """A domain, a domain with a path, or an http(s) URL (apidoc: "Домен или URL")."""
+    if not isinstance(value, str) or not 1 <= len(value.strip()) <= 1280:
+        raise ValueError("tracking_item must be a domain or URL")
+    text = value.strip()
+    if "://" not in text:
+        if _DOMAINISH.fullmatch(text) is None:
+            raise ValueError("tracking_item must be a domain or URL")
+        return text
+    try:
+        url = urlsplit(text)
+        host = url.hostname
+        _ = url.port  # raises ValueError on an invalid port
+    except ValueError as exc:
+        raise ValueError("tracking_item must be a domain or URL") from exc
+    if (
+        url.scheme.lower() not in {"http", "https"}
+        or not host
+        or _HOST.fullmatch(host) is None
+        or url.username is not None
+        or re.search(r"[\s\x00-\x1f\x7f]", text)
+    ):
+        raise ValueError("tracking_item must be a domain or an http(s) URL without credentials")
+    return text
 
 
 def monitoring_write_request(
@@ -210,13 +248,11 @@ def monitoring_write_request(
     """create: a monitoring project from a clustering uid or phrases; start: paid position refresh."""
     setting = {
         "regionId": _int(region_id, "region_id", 1, 10_000_000),
-        "engine": _int(engine, "engine", 0, 1),
+        "engine": _engine(engine),
     }
     if action == "create":
-        if not isinstance(tracking_item, str) or _DOMAINISH.fullmatch(tracking_item.strip()) is None:
-            raise ValueError("tracking_item must be a domain or URL")
         payload: dict[str, Any] = {
-            "trackingItem": tracking_item.strip(),
+            "trackingItem": _tracking_item(tracking_item),
             "trackSubDomains": False,
             "searchSettings": [setting],
         }
@@ -265,7 +301,7 @@ def monitoring_request(
     if region_id is not None or engine is not None:
         setting = {
             "regionId": _int(region_id, "region_id", 1, 10_000_000),
-            "engine": _int(engine or 0, "engine", 0, 1),
+            "engine": _engine(engine or 0),
         }
         params["searchSettings[]"] = [json.dumps(setting, separators=(",", ":"))]
     if folder_ids:

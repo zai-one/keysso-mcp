@@ -50,7 +50,7 @@ DESCRIPTIONS = {
     "compare, chart, dates, limits; create from clusters, start refresh. "
     "Cost: create/start need confirm=true.",
     "keysso_api": "Documented tools/*, wordstat, serp, clustering import/frequency, monitoring "
-    "PATCH/DELETE. Cost: non-GET needs operator approval_id.",
+    "PATCH/DELETE. Cost: non-GET and GET serp/<id>/csv need operator approval_id.",
     "keysso_check_update": "Check for a newer server release; never installs. Cost: free, 24h cache.",
 }
 
