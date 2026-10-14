@@ -2,7 +2,9 @@
 
 Opt-in toolsets: `KEYSSO_TOOLSETS=default,jobs,monitoring` (or `all`). Every start spends plan limits:
 call `keysso_limits`, show phrase count + remaining limit, and pass `confirm=true` only after an
-explicit OK. Without `confirm` the tool returns a free preview (`needs_confirmation`).
+explicit OK. Without `confirm` the tool returns a free preview (`needs_confirmation`); with
+`confirm=true` it returns `approval_id` + `operator_command` — the operator accepts it outside MCP,
+then repeat the same call with `approval_id` (single use, 30 min).
 
 | Step | Tool call | Notes |
 |---|---|---|
@@ -17,5 +19,6 @@ explicit OK. Without `confirm` the tool returns a free preview (`needs_confirmat
 | Existing projects | `keysso_monitoring(action="projects")`, `action="dates"`, `action="chart"` | read-only |
 
 Limits: up to 1000 phrases per call, 100 chars per phrase. Region IDs: 213 Москва, 2 СПб (Yandex).
-Not exposed: deleting projects, moving phrases between folders, editing monitoring settings.
+Monitoring PATCH/DELETE/link-words, wordstat, serp, `tools/*`: `keysso_api` (opt-in toolset `api`),
+same approval rule for every non-GET.
 Saved group reports (read): `keys_so_query("/report/group/list")`, `/report/group/<section>/<rid>`.

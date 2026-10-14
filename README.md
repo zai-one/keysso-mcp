@@ -4,7 +4,7 @@
 
 **Turn competitor data into your next SEO investigation.**
 
-> Read-only MCP server for Keys.so: competitor domains, organic and paid keywords, pages, ad archives, backlinks and the AI-answer (GEO) tracker.
+> MCP server for Keys.so (read-only by default): competitor domains, organic and paid keywords, pages, ad archives, backlinks and the AI-answer (GEO) tracker.
 
 Ask which keywords a competing domain ranks for, inspect its ads or explore its backlink sources. Keys.so MCP brings supported Keys.so reports into your assistant, so you can ask follow-up questions against the same source data instead of preparing a new export for each question.
 
@@ -26,9 +26,9 @@ Try asking your assistant:
 
 ## Why this MCP
 
-- Read-only by design: nothing is created, started or deleted in your Keys.so account.
+- Read-only by default: the default toolsets never create, start or delete anything. Opt-in toolsets (`jobs`, `monitoring`, `api`) can start limit-spending jobs and change monitoring projects, and each such call needs an operator-accepted `approval_id`.
 - A small tool surface routes to the documented report catalog (`keysso://reports`), with limits and field filtering to keep responses short.
-- Toolsets (meta, reports, ai_tracker), router instructions that say when to use Keys.so vs Topvisor or Arsenkin, skills and prompts.
+- Toolsets (default: meta, reports, ai_tracker; opt-in: jobs, monitoring, api), router instructions that say when to use Keys.so vs Topvisor or Arsenkin, skills and prompts.
 - The other Keys.so MCP on GitHub ([perfilev/keys-so-mcp](https://github.com/perfilev/keys-so-mcp), 21 tools) has no tests, CI or update check.
 
 ## Maintained and up to date
@@ -185,7 +185,7 @@ Ask: “Export a competitor’s keywords excluding my domain, in CSV. Show wheth
 
 `keysso_check_update` compares the installed version with the latest [GitHub release](https://github.com/zai-one/keysso-mcp/releases) and returns the release link and the matching `uv tool install --force ...` command. It never installs anything and uses no Keys.so quota. The result is cached for 24 hours next to the state database; when a newer release is cached, the server instructions mention it once. After a failed request it waits 30 minutes, and `force_refresh` works at most once a minute. Set `KEYSSO_DISABLE_UPDATE_CHECK=1` to turn off both the tool's network request and the startup refresh.
 
-This server exposes read-only reports. Available data and request limits depend on your Keys.so account. See [request limits and access settings](docs/RUNTIME.md).
+The default toolsets expose read-only reports; opt-in toolsets are described in [Toolsets](#toolsets-and-read-only-mode). Available data and request limits depend on your Keys.so account. See [request limits and access settings](docs/RUNTIME.md).
 
 Authenticated HTTP is available for a server deployment. See [HTTP setup](INSTALL.md#http), [configuration and permissions](docs/RUNTIME.md) and [Python package integration](INSTALL.md#python-package-and-platform-integration).
 
