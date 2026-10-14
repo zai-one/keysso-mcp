@@ -48,7 +48,7 @@ Clients and `notifications/tools/list_changed` (verified against official docs, 
 
 ## Maintained and up to date
 
-- Actively maintained by ZAI.ONE: current version 0.5.0; release notes in [CHANGELOG.md](CHANGELOG.md) and [Releases](https://github.com/zai-one/keysso-mcp/releases).
+- Actively maintained by ZAI.ONE: current version 0.6.0; release notes in [CHANGELOG.md](CHANGELOG.md) and [Releases](https://github.com/zai-one/keysso-mcp/releases).
 - Built-in update check: ask the assistant to run `keysso_check_update` (public GitHub API, no credentials, cached; nothing is installed automatically; `KEYSSO_DISABLE_UPDATE_CHECK=1` turns it off).
 - Follows current MCP practice: tool annotations (read-only / destructive hints), toolsets and read-only mode, server `instructions`, prompts and resources, structured errors with recovery hints, secrets kept out of tool output, a token budget for tool descriptions enforced in tests.
 - CI runs the test suite on Linux and Windows for every pull request.
@@ -114,13 +114,13 @@ reproducible installs; placeholders below are examples, keep secrets in files ou
 **Claude Code**
 
 ```bash
-claude mcp add keysso --env KEYSSO_API_TOKEN_FILE=/path/to/keysso.token --env KEYSSO_STATE_PATH=/path/to/keysso.sqlite -- uvx --from git+https://github.com/zai-one/keysso-mcp@v0.5.0 keysso-mcp
+claude mcp add keysso --env KEYSSO_API_TOKEN_FILE=/path/to/keysso.token --env KEYSSO_STATE_PATH=/path/to/keysso.sqlite -- uvx --from git+https://github.com/zai-one/keysso-mcp@v0.6.0 keysso-mcp
 ```
 
 Skills for Claude Code: copy `skills/*` into `~/.claude/skills/` (or install this repo as a plugin — it
 ships `.claude-plugin/plugin.json` with the skills and the MCP server).
 
-**Cursor** — `.cursor/mcp.json` ([one-click install](cursor://anysphere.cursor-deeplink/mcp/install?name=keysso&config=eyJjb21tYW5kIjogInV2eCIsICJhcmdzIjogWyItLWZyb20iLCAiZ2l0K2h0dHBzOi8vZ2l0aHViLmNvbS96YWktb25lL2tleXNzby1tY3BAdjAuNS4wIiwgImtleXNzby1tY3AiXSwgImVudiI6IHsiS0VZU1NPX0FQSV9UT0tFTl9GSUxFIjogIi9wYXRoL3RvL2tleXNzby50b2tlbiIsICJLRVlTU09fU1RBVEVfUEFUSCI6ICIvcGF0aC90by9rZXlzc28uc3FsaXRlIn19)):
+**Cursor** — `.cursor/mcp.json` ([one-click install](cursor://anysphere.cursor-deeplink/mcp/install?name=keysso&config=eyJjb21tYW5kIjogInV2eCIsICJhcmdzIjogWyItLWZyb20iLCAiZ2l0K2h0dHBzOi8vZ2l0aHViLmNvbS96YWktb25lL2tleXNzby1tY3BAdjAuNi4wIiwgImtleXNzby1tY3AiXSwgImVudiI6IHsiS0VZU1NPX0FQSV9UT0tFTl9GSUxFIjogIi9wYXRoL3RvL2tleXNzby50b2tlbiIsICJLRVlTU09fU1RBVEVfUEFUSCI6ICIvcGF0aC90by9rZXlzc28uc3FsaXRlIn19)):
 
 ```json
 {
@@ -129,7 +129,7 @@ ships `.claude-plugin/plugin.json` with the skills and the MCP server).
       "command": "uvx",
       "args": [
         "--from",
-        "git+https://github.com/zai-one/keysso-mcp@v0.5.0",
+        "git+https://github.com/zai-one/keysso-mcp@v0.6.0",
         "keysso-mcp"
       ],
       "env": {
@@ -147,7 +147,7 @@ repo's `.agents/skills` link):
 ```toml
 [mcp_servers.keysso]
 command = "uvx"
-args = ["--from", "git+https://github.com/zai-one/keysso-mcp@v0.5.0", "keysso-mcp"]
+args = ["--from", "git+https://github.com/zai-one/keysso-mcp@v0.6.0", "keysso-mcp"]
 env = { KEYSSO_API_TOKEN_FILE = "/path/to/keysso.token", KEYSSO_STATE_PATH = "/path/to/keysso.sqlite" }
 ```
 
