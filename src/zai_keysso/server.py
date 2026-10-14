@@ -21,9 +21,19 @@ from zai_keysso.agent_layer import apply as apply_agent_layer
 from zai_keysso.agent_layer import router_instructions
 from zai_keysso.agent_profile import PROFILE
 from zai_keysso.ai_tracker import ai_tracker_request
+from zai_keysso.api_calls import needs_approval, validate_call
+from zai_keysso.approvals import ApprovalStore
 from zai_keysso.catalog import report_catalog
 from zai_keysso.coalescing import AsyncSingleFlight
 from zai_keysso.config import ServiceConfig
+from zai_keysso.jobs import (
+    CONFIRM_HINT,
+    MONITORING_WRITES,
+    clustering_request,
+    keyword_job_request,
+    monitoring_request,
+    monitoring_write_request,
+)
 from zai_keysso.onboarding import check_config, load_config
 from zai_keysso.policy import PolicyStore
 from zai_keysso.reports import (
@@ -51,6 +61,8 @@ READ_ONLY = {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": T
 # The update check reads GitHub, not Keys.so. Not idempotent: force_refresh may fetch again and
 # rewrite the local version cache, so repeated calls can change what later calls return.
 UPDATE_CHECK = {**READ_ONLY, "idempotentHint": False}
+# Keyword jobs, clustering and monitoring starts create provider-side jobs and spend plan limits.
+JOB = {"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False, "openWorldHint": True}
 SCOPE = "keys_so:read"
 OPERATION_TIMEOUT_SECONDS = 75.0
 T = TypeVar("T")
@@ -126,6 +138,18 @@ class AdmittedHttpClient(JsonHttpClient):
         self.store.admit(self.execution_id, self.actor, self.admissions)
 
 
+def _approval_error(code: str, message: str) -> ToolError:
+    envelope = {"provider": "keys_so", "code": code, "message": message, "retryable": False}
+    return ToolError(json.dumps(envelope, sort_keys=True, separators=(",", ":"), ensure_ascii=False))
+
+
+def _consume(approvals: Any, approval_id: str, tool_name: str, request: dict[str, Any]) -> None:
+    try:
+        approvals.consume(approval_id, tool_name, request)
+    except PermissionError as exc:
+        raise _approval_error("approval_invalid", str(exc)) from None
+
+
 def _safe_error(exc: Exception) -> ToolError:
     # No provider body, secret or exception message crosses this boundary.
     envelope: dict[str, Any] = {"provider": "keys_so", "code": "operation_failed", "retryable": False}
@@ -182,6 +206,7 @@ def create_server(
             audience=config.audience,
             required_scopes=[SCOPE],
         )
+    approvals = ApprovalStore(config.state_path.with_name("keysso-approvals.json"))
     store = PolicyStore(
         config.state_path,
         config.account_id,
@@ -456,6 +481,280 @@ def create_server(
             if begun:
                 store.finish(execution_id, "error")
             raise _safe_error(exc) from None
+
+    async def run_job(
+        tool_name: str,
+        arguments: dict[str, Any],
+        build: Callable[[], tuple[str, str, dict[str, Any], dict[str, Any] | None]],
+        spends: bool,
+        confirm: bool,
+        approval_id: str | None = None,
+    ) -> dict[str, Any]:
+        if spends and confirm is True:
+            try:
+                method, path, params, payload = build()
+            except (ValueError, TypeError) as exc:
+                # Same safe envelope as the other paths, not a masked internal error.
+                raise _approval_error("validation_failed", str(exc)) from None
+            request = {"method": method, "path": path, "params": params, "payload": payload}
+            if not approval_id:
+
+                async def prepare() -> dict[str, Any]:
+                    return _approval_needed(tool_name, request, f"{method} {path}")
+
+                return await execute_local(tool_name, arguments, prepare)
+            _consume(approvals, approval_id, tool_name, request)
+        if spends and confirm is not True:
+
+            async def preview() -> dict[str, Any]:
+                method, path, _, payload = build()
+                size = len((payload or {}).get("list") or (payload or {}).get("keywords") or [])
+                return {
+                    "needs_confirmation": True,
+                    "method": method,
+                    "path": path,
+                    "phrases": size,
+                    "hint": CONFIRM_HINT,
+                }
+
+            return await execute_local(tool_name, arguments, preview)
+
+        async def call(adapter: KeysSoAdapter) -> dict[str, Any]:
+            method, path, params, payload = build()
+            return {"payload": await adapter.job(method, path, params, payload)}
+
+        return await execute(tool_name, arguments, build, call)
+
+    @server.tool(annotations=JOB)
+    async def keysso_keyword_job(
+        kind: Literal["keywords_by_list", "extended_keywords", "concurents_by_keywords"],
+        action: Literal["start", "status", "result"],
+        phrases: list[str] | None = None,
+        base: str = "msk",
+        uid: str | None = None,
+        top: int | None = None,
+        view: str | None = None,
+        page: int | None = None,
+        per_page: int | None = None,
+        sort: str | None = None,
+        similarity: int | None = None,
+        confirm: bool = False,
+        approval_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Run a Keys.so keyword tool job: start -> status -> result (paged).
+
+        keywords_by_list: frequencies/metrics for your phrase list (mass check); extended_keywords:
+        expand phrases into a semantic core; concurents_by_keywords: competitor share for phrases
+        (top 10|50; result view=organic|context). extended_keywords start takes similarity 5-100.
+        start spends limits and needs confirm=true.
+        """
+        arguments = {
+            "kind": kind,
+            "action": action,
+            "phrases": phrases,
+            "base": base,
+            "uid": uid,
+            "top": top,
+            "view": view,
+            "page": page,
+            "per_page": per_page,
+            "sort": sort,
+            "similarity": similarity,
+            "confirm": confirm,
+        }
+
+        def build() -> Any:
+            return keyword_job_request(
+                kind,
+                action,
+                phrases=phrases,
+                base=base,
+                uid=uid,
+                top=top,
+                view=view,
+                page=page,
+                per_page=per_page,
+                sort=sort,
+                similarity=similarity,
+            )
+
+        return await run_job("keysso_keyword_job", arguments, build, action == "start", confirm, approval_id)
+
+    @server.tool(annotations=JOB)
+    async def keysso_clustering(
+        action: Literal["list", "create", "build", "status", "folders", "keywords"],
+        phrases: list[str] | None = None,
+        base: str = "msk",
+        uid: str | None = None,
+        folder_id: int | None = None,
+        top_number: int = 10,
+        strength: int | None = None,
+        min_frequency: int | None = None,
+        page: int | None = None,
+        per_page: int | None = None,
+        sort: str | None = None,
+        confirm: bool = False,
+        approval_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Cluster phrases by SERP overlap in Keys.so: create -> build -> status -> folders -> keywords.
+
+        create(phrases, base) returns uid; build(uid, top_number 10|20|50, strength %, min_frequency)
+        starts SERP+frequency collection. create/build spend limits and need confirm=true.
+        """
+        arguments = {
+            "action": action,
+            "phrases": phrases,
+            "base": base,
+            "uid": uid,
+            "folder_id": folder_id,
+            "top_number": top_number,
+            "strength": strength,
+            "min_frequency": min_frequency,
+            "page": page,
+            "per_page": per_page,
+            "sort": sort,
+            "confirm": confirm,
+        }
+
+        def build() -> Any:
+            return clustering_request(
+                action,
+                phrases=phrases,
+                base=base,
+                uid=uid,
+                folder_id=folder_id,
+                top_number=top_number,
+                strength=strength,
+                min_frequency=min_frequency,
+                page=page,
+                per_page=per_page,
+                sort=sort,
+            )
+
+        return await run_job(
+            "keysso_clustering", arguments, build, action in {"create", "build"}, confirm, approval_id
+        )
+
+    @server.tool(annotations=JOB)
+    async def keysso_monitoring(
+        action: Literal[
+            "projects", "entity", "dates", "report", "compare", "chart", "limits", "create", "start"
+        ],
+        project_id: int | None = None,
+        date_from: str | None = None,
+        date_to: str | None = None,
+        region_id: int | None = None,
+        engine: int | None = None,
+        folder_ids: list[int] | None = None,
+        search: str | None = None,
+        tracking_item: str | None = None,
+        cluster_uid: str | None = None,
+        phrases: list[str] | None = None,
+        name: str | None = None,
+        page: int | None = None,
+        per_page: int | None = None,
+        sort: str | None = None,
+        confirm: bool = False,
+        approval_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Keys.so position monitoring: read projects/report/compare/chart/dates/limits; create/start.
+
+        create(tracking_item, cluster_uid or phrases, region_id, engine 0 Yandex|1 Google) makes a project
+        from clusters; start(project_id) is a paid position refresh. create/start need confirm=true.
+        """
+        arguments = {
+            "action": action,
+            "project_id": project_id,
+            "date_from": date_from,
+            "date_to": date_to,
+            "region_id": region_id,
+            "engine": engine,
+            "folder_ids": folder_ids,
+            "search": search,
+            "tracking_item": tracking_item,
+            "cluster_uid": cluster_uid,
+            "phrases": phrases,
+            "name": name,
+            "page": page,
+            "per_page": per_page,
+            "sort": sort,
+            "confirm": confirm,
+        }
+
+        def build() -> Any:
+            if action in MONITORING_WRITES:
+                return monitoring_write_request(
+                    action,
+                    project_id=project_id,
+                    tracking_item=tracking_item,
+                    cluster_uid=cluster_uid,
+                    phrases=phrases,
+                    region_id=region_id or 213,
+                    engine=engine or 0,
+                    name=name,
+                    folder_ids=folder_ids,
+                )
+            return monitoring_request(
+                action,
+                project_id=project_id,
+                date_from=date_from,
+                date_to=date_to,
+                region_id=region_id,
+                engine=engine,
+                folder_ids=folder_ids,
+                search=search,
+                page=page,
+                per_page=per_page,
+                sort=sort,
+            )
+
+        return await run_job(
+            "keysso_monitoring", arguments, build, action in MONITORING_WRITES, confirm, approval_id
+        )
+
+    def _approval_needed(tool_name: str, request: dict[str, Any], summary: str) -> dict[str, Any]:
+        ticket = approvals.prepare(tool_name, request, summary)
+        return {
+            "needs_operator_approval": True,
+            **ticket,
+            "summary": summary,
+            "operator_command": approvals.operator_command("keysso-approval", ticket),
+            "hint": "Show the request to the user; after the operator accepts, repeat the same call "
+            "with approval_id. The agent never runs the operator command.",
+        }
+
+    @server.tool(annotations=JOB)
+    async def keysso_api(
+        method: Literal["GET", "POST", "PATCH", "DELETE"],
+        path: str,
+        params: dict[str, Any] | None = None,
+        body: dict[str, Any] | list[Any] | None = None,
+        approval_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Call one documented Keys.so endpoint (tools/*, wordstat/*, serp/*, clustering, monitoring).
+
+        GET runs at once. POST/PATCH/DELETE spend limits or change data: the first call returns
+        approval_id + digest for the operator; repeat with approval_id after acceptance.
+        """
+        arguments = {"method": method, "path": path, "params": params, "body": body}
+        try:
+            verb, clean_path, clean_params, payload = validate_call(method, path, params, body)
+        except ValueError as exc:
+            raise _approval_error("validation_failed", str(exc)) from None
+        request = {"method": verb, "path": clean_path, "params": clean_params, "payload": payload}
+        if needs_approval(verb):
+            if not approval_id:
+
+                async def prepare() -> dict[str, Any]:
+                    return _approval_needed("keysso_api", request, f"{verb} {clean_path}")
+
+                return await execute_local("keysso_api", arguments, prepare)
+            _consume(approvals, approval_id, "keysso_api", request)
+
+        async def call(adapter: KeysSoAdapter) -> dict[str, Any]:
+            return {"payload": await adapter.job(verb, clean_path, clean_params, payload)}
+
+        return await execute("keysso_api", arguments, lambda: None, call)
 
     @server.tool(annotations=READ_ONLY)
     async def keysso_limits() -> dict[str, Any]:

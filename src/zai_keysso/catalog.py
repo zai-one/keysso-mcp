@@ -22,7 +22,18 @@ PARAMETERS = {
     "Context keyword reports reject header, txt and url; the keyword ads archive sorts by keyscnt or serp",
     "keyword": "Search phrase, 1-512 characters (keyword_dashboard, similarkeys, keyword ads archive)",
     "month": "Monthly ad archive month YYYY-MM; omitted means the current month (Yandex bases only)",
+    "filter": "Provider filter expression (apidoc: Фильтрация данных), e.g. wordLIKEкупить, up to 4096 chars",
     "full": "Boolean; context/ads/archive adds keywords for each ad",
+    "url": "Page URL filter for organic/keywords (with includeSubLevels)",
+    "page_url": "Page URL, required by organic/keywords/bypage and organic/concurent_pages",
+    "includeSubLevels": "Boolean; organic/keywords with url also counts nested pages",
+    "kid": "Keys.so keyword ID (direct/ads)",
+    "id": "Owner/site ID (owner/subdomains)",
+    "projectId": "Keys.so project ID (projects/competitors)",
+    "date": "YYYY-MM-DD (robots/data)",
+    "forDay": "YYYY-MM-DD (zen/channel/new/top/publications)",
+    "channel": "Zen channel slug or URL",
+    "groupingBy": "RSYA grouping field (report/ads/rsya)",
 }
 
 
@@ -32,7 +43,15 @@ def report_catalog() -> dict[str, Any]:
         "tool": "keys_so_query",
         "method": "GET",
         "reports": [{"path": path} for path in sorted(ALLOWED_PATHS)],
-        "path_templates": [{"path": "/report/ads/rsya/domains/{domain}", "domain": "valid DNS domain"}],
+        "path_templates": [
+            {"path": "/report/ads/rsya/domains/{domain}", "domain": "valid DNS domain"},
+            {
+                "path": "/report/group/{section}/{rid}",
+                "section": "state|domains|organic/keywords|organic/concurents|organic/sitepages|"
+                "context/keywords|context/concurents|context/ads|context/ads/links|context/ads/facts",
+                "rid": "saved group report id from /report/group/list",
+            },
+        ],
         "parameters": {key: PARAMETERS[key] for key in sorted(ALLOWED_PARAMS)},
         "parameter_scope": "Service allowlist; required parameters vary by provider report",
         "pagination": "One provider request per call; request further pages explicitly",

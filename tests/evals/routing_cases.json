@@ -1,0 +1,112 @@
+[
+  {
+    "request": "кто наши конкуренты в органике у сайта shop.ru?",
+    "route": "competitors",
+    "tool": "keysso_domain_report"
+  },
+  {
+    "request": "глянь трафик и видимость домена example.com в мск",
+    "route": "competitors",
+    "tool": "keys_so_query"
+  },
+  {
+    "request": "who are the main competitors of acme.com",
+    "route": "competitors",
+    "tool": "keysso_domain_report"
+  },
+  {
+    "request": "какие запросы есть у конкурентов а у нас чего нет — нужен контент-гэп",
+    "route": "gap",
+    "tool": "keysso_compare_domains"
+  },
+  {
+    "request": "find the keyword gap between us and two rivals",
+    "route": "gap",
+    "tool": "keysso_compare_domains"
+  },
+  {
+    "request": "по фразе 'купить диван' кто в топе и какие похожие запросы",
+    "route": "phrase",
+    "tool": "keys_so_query"
+  },
+  {
+    "request": "give me a quick phrase report for 'crm for small business'",
+    "route": "phrase",
+    "tool": "keys_so_query"
+  },
+  {
+    "request": "покажи объявления конкурента в директе за прошлый месяц из архива",
+    "route": "ads",
+    "tool": "keys_so_query"
+  },
+  {
+    "request": "what ads does rival.ru run in РСЯ",
+    "route": "ads",
+    "tool": "keys_so_query"
+  },
+  {
+    "request": "нужны ссылки на сайт конкурента: доноры и анкоры",
+    "route": "ads",
+    "tool": "keys_so_query"
+  },
+  {
+    "request": "собери семантику по натяжным потолкам и раскидай по кластерам",
+    "route": "semantics",
+    "tool": "keysso_keyword_job"
+  },
+  {
+    "request": "сделай кластеризацию ядра из 300 фраз",
+    "route": "semantics",
+    "tool": "keysso_clustering"
+  },
+  {
+    "request": "build a semantic core and cluster it for our blog",
+    "route": "semantics",
+    "tool": "keysso_clustering"
+  },
+  {
+    "request": "поставь кластеры на мониторинг позиций",
+    "route": "semantics",
+    "tool": "keysso_monitoring"
+  },
+  {
+    "request": "как часто нас упоминает ChatGPT и другие нейросети",
+    "route": "geo",
+    "tool": "keysso_ai_tracker"
+  },
+  {
+    "request": "is our brand visible in AI answers (GEO)?",
+    "route": "geo",
+    "tool": "keysso_ai_tracker"
+  },
+  {
+    "request": "сколько лимитов осталось на тарифе?",
+    "route": "limits",
+    "tool": "keysso_limits"
+  },
+  {
+    "request": "got error 429 from keys.so, what now",
+    "route": "limits",
+    "tool": "keysso_limits"
+  },
+  {
+    "request": "какая погода завтра в Москве",
+    "route": null,
+    "tool": ""
+  },
+  {
+    "request": "translate this paragraph into German",
+    "route": null,
+    "tool": ""
+  },
+  {
+    "request": "напиши стихотворение про осень",
+    "route": null,
+    "tool": ""
+  },
+  {
+    "request": "book a table at the restaurant tonight",
+    "route": null,
+    "tool": ""
+  }
+]

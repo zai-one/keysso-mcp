@@ -91,3 +91,8 @@ of the hashed object only when the call provides it; an omitted (or null) `field
 is not included. The nonce is
 consumed once for the whole call; its pages share that execution's audit and
 deadline. A raw-query delegation does not authorize a typed report.
+
+The opt-in tools `keysso_keyword_job`, `keysso_clustering`, `keysso_monitoring` and
+`keysso_api` hash every named parameter of their schema, including `null` defaults and
+`confirm`, but never `approval_id`: the preview, approval and approved calls of one request
+share a `request_hash`, and each still needs its own fresh delegation nonce.

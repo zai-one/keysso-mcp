@@ -22,6 +22,15 @@ RS256, match `KEYSSO_MCP_ISSUER` (default `keysso-operator`) and
 `scope: "keys_so:read"`, and `account_id` matching `KEYSSO_ACCOUNT_ID` (default
 `default`). Use a trusted issuer; private signing keys never belong in this repo.
 
+## Opt-in paid and writing tools
+
+The default toolsets are read-only. The opt-in toolsets `jobs`, `monitoring` and `api`
+(`KEYSSO_TOOLSETS=all` or by name; removed by `KEYSSO_READ_ONLY=1`) can spend plan limits or
+change saved data. Each such call needs a single-use, request-bound approval that the operator
+accepts outside MCP with `keysso-approval` (file `keysso-approvals.json` next to the state
+database, 30-minute TTL). Over HTTP these tools are authorized by the same `keys_so:read`
+scope, so enable them on an HTTP deployment only when every token holder may request paid work.
+
 ## Central gateway mode
 
 Set `KEYSSO_AUTH_MODE=delegated`. Every tool invocation needs a fresh signed JWT
