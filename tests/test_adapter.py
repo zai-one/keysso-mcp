@@ -62,7 +62,7 @@ async def test_keys_so_rejects_path_param_and_domain_escape_before_network() -> 
     with pytest.raises(ValueError, match="path is not allowed"):
         await adapter.query("/admin/tokens", {})
     with pytest.raises(ValueError, match="unsupported Keys.so parameters"):
-        await adapter.query("/limits/all", {"url": "https://attacker.invalid"})
+        await adapter.query("/limits/all", {"callback": "https://attacker.invalid"})
     with pytest.raises(ValueError, match="valid DNS domains"):
         await adapter.query("/report/simple/domain_dashboard", {"domain": "../etc/passwd"})
     with pytest.raises(ValueError, match="between 1 and 500"):

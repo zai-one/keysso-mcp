@@ -3,12 +3,12 @@
 ## Install a release package
 
 Install [uv](https://docs.astral.sh/uv/getting-started/installation/) and download the
-wheel `zai_keysso_mcp-0.5.0-py3-none-any.whl` plus `SHA256SUMS` from [v0.5.0](https://github.com/zai-one/keysso-mcp/releases/tag/v0.5.0).
+wheel `zai_keysso_mcp-0.6.0-py3-none-any.whl` plus `SHA256SUMS` from [v0.6.0](https://github.com/zai-one/keysso-mcp/releases/tag/v0.6.0).
 Compare the wheel's SHA-256 with the published checksum before installing it.
 The wheel is platform-independent; Python 3.12–3.14 is required.
 
 ```sh
-uv tool install "zai-keysso-mcp @ https://github.com/zai-one/keysso-mcp/releases/download/v0.5.0/zai_keysso_mcp-0.5.0-py3-none-any.whl"
+uv tool install "zai-keysso-mcp @ https://github.com/zai-one/keysso-mcp/releases/download/v0.6.0/zai_keysso_mcp-0.6.0-py3-none-any.whl"
 keysso-mcp-setup --directory /absolute/path/to/my-keysso-settings
 keysso-mcp --config /absolute/path/to/my-keysso-settings/mcp.local.json --check-config
 ```
@@ -101,7 +101,7 @@ The local configuration check never generates a signing key or an access token.
 
 ```sh
 uv build
-python -m pip install "dist/zai_keysso_mcp-0.5.0-py3-none-any.whl"
+python -m pip install "dist/zai_keysso_mcp-0.6.0-py3-none-any.whl"
 keysso-mcp --config /ABSOLUTE/PATH/mcp.local.json
 ```
 
